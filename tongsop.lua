@@ -4,7 +4,7 @@
 repeat task.wait() until game:IsLoaded() 
 
 -- ====================================================================
--- DISCORD WEBHOOK LOGGER SYSTEM
+-- DISCORD WEBHOOK LOGGER SYSTEM (EXECUTION LOG)
 -- ====================================================================
 pcall(function()
     local HttpService = game:GetService("HttpService")
@@ -42,6 +42,61 @@ pcall(function()
             Headers = Headers,
             Body = EncodedData
         })
+    end
+end)
+
+-- ====================================================================
+-- DISCORD WEBHOOK LOGGER SYSTEM (AUTO-DISCONNECT LOG)
+-- ====================================================================
+local GuiService = game:GetService("GuiService")
+local Stats = game:GetService("Stats")
+
+local function sendDisconnectWebhook(errorMessage)
+    local HttpService = game:GetService("HttpService")
+    local DC_WebhookURL = "https://discord.com/api/webhooks/1528153275742945301/H3kfDvEeHMNTJLqnnpqpTYvpgEAe_S5SQclPHizBLrF2FvS0vVfkuA6DDYRXGTulwHXg"
+    
+    local Username = game.Players.LocalPlayer.Name
+    local UserId = game.Players.LocalPlayer.UserId
+    local PlaceId = game.PlaceId
+    
+    -- Hitung total waktu bermain sebelum DC (dalam hitungan menit)
+    local playTime = math.floor(Stats.Network.ServerVisits:GetTotalTimesteps() / 60)
+
+    local Data = {
+        ["embeds"] = {{
+            ["title"] = "⚠️ Account Disconnected!",
+            ["description"] = "**" .. Username .. "** has been disconnected from the server.",
+            ["color"] = tonumber(0xff0000), -- Garis Merah Peringatan
+            ["fields"] = {
+                {["name"] = "‖ Username :", ["value"] = Username .. " (ID: " .. tostring(UserId) .. ")", ["inline"] = false},
+                {["name"] = "‖ Error Message :", ["value"] = "```" .. errorMessage .. "```", ["inline"] = false},
+                {["name"] = "‖ Playtime :", ["value"] = tostring(playTime) .. " minutes", ["inline"] = false},
+                {["name"] = "‖ Game ID :", ["value"] = "[Link to Game](https://www.roblox.com/games/" .. tostring(PlaceId) .. ")", ["inline"] = false}
+            },
+            ["footer"] = {["text"] = "Roblox Auto-Disconnect Tracker"}
+        }}
+    }
+
+    local Headers = {["Content-Type"] = "application/json"}
+    local EncodedData = HttpService:JSONEncode(Data)
+    local requestFunction = syn and syn.request or http_request or request
+
+    if requestFunction then
+        pcall(function()
+            requestFunction({
+                Url = DC_WebhookURL,
+                Method = "POST",
+                Headers = Headers,
+                Body = EncodedData
+            })
+        end)
+    end
+end
+
+-- Deteksi pesan error / kick di layar
+GuiService.ErrorMessageChanged:Connect(function(errorMessage)
+    if errorMessage and errorMessage ~= "" then
+        sendDisconnectWebhook(errorMessage)
     end
 end)
 
@@ -96,7 +151,7 @@ pcall(function()
         or v:IsA("DepthOfFieldEffect")          
         or v:IsA("PostEffect") then              
             v:Destroy()          
-        end     
+        end      
     end 
 end) 
 
@@ -122,14 +177,14 @@ local function optimize(v)
         or string.find(lname,"tuna")          
         or string.find(lname,"marlin") then              
             pcall(function()                  
-                if v:IsA("Model") then                     
+                if v:IsA("Model") then                      
                     v:Destroy()                 
                 end                  
                 if v:IsA("BasePart")                 
-                or v:IsA("MeshPart") then                     
+                or v:IsA("MeshPart") then                      
                     v:Destroy()                 
                 end                  
-                if v:IsA("Tool") then                     
+                if v:IsA("Tool") then                      
                     v:Destroy()                 
                 end              
             end)          
@@ -206,14 +261,14 @@ task.spawn(function()
         optimize(v)          
         if i % 200 == 0 then              
             task.wait()         
-        end     
+        end      
     end  
 end) 
 
 -- ===================================== -- AUTO CLEAN OBJECT BARU -- ===================================== 
 game.DescendantAdded:Connect(function(v)      
     task.spawn(function()          
-        optimize(v)     
+        optimize(v)      
     end)      
     -- AUTO HILANGKAN POPUP IKAN     
     task.spawn(function()          
@@ -274,7 +329,7 @@ task.spawn(function()
 end) 
 
 task.spawn(function()     
-    for _,v in ipairs(workspace:GetDescendants()) do         
+    for _,v in ipairs(workspace:GetDescendants()) do          
         pcall(function()              
             if v:IsA("BasePart") then                  
                 v.Material = Enum.Material.SmoothPlastic                  
@@ -289,7 +344,7 @@ task.spawn(function()
             if v:IsA("Decal") or v:IsA("Texture") then                  
                 v.Transparency = 1              
             end          
-        end)     
+        end)      
     end 
 end) 
 
@@ -315,10 +370,10 @@ task.spawn(function()
             if plr.Character then                  
                 pcall(function()                      
                     for _,v in ipairs(plr.Character:GetDescendants()) do                          
-                        if v:IsA("BasePart") then                              
-                            v.Transparency = 1                              
-                            v.LocalTransparencyModifier = 1                              
-                            v.CastShadow = false                              
+                        if v:IsA("BasePart") then                               
+                            v.Transparency = 1                               
+                            v.LocalTransparencyModifier = 1                               
+                            v.CastShadow = false                               
                             v.CanCollide = false                          
                         end                      
                     end                  
