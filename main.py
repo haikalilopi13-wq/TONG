@@ -10,7 +10,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# Mematikan help bawaan agar alias 'help' milik kita tidak bentrok (bebas crash)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # ID Channel milik Anda
 GENERAL_CHANNEL_ID = 1518084729122062488
