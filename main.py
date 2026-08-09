@@ -6,11 +6,13 @@ import re
 import sqlite3
 import discord
 from discord.ext import commands
+import yt_dlp
 
 # Config Bot
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.voice_states = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
@@ -19,6 +21,48 @@ GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 
 xp_cooldowns = {}
+
+# Config YT-DLP & FFmpeg
+YTDL_OPTIONS = {
+    'format': 'bestaudio/best',
+    'extractaudio': True,
+    'audioformat': 'mp3',
+    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0',
+}
+
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn',
+}
+
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
+
+class YTDLSource(discord.PCMVolumeTransformer):
+    def __init__(self, source, *, data, volume=0.5):
+        super().__init__(source, volume)
+        self.data = data
+        self.title = data.get('title')
+        self.url = data.get('url')
+
+    @classmethod
+    async def from_url(cls, url, *, loop=None, stream=True):
+        loop = loop or asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+
+        if 'entries' in data:
+            data = data['entries'][0]
+
+        filename = data['url'] if stream else ytdl.prepare_filename(data)
+        return cls(discord.FFmpegPCMAudio(filename, **FFMPEG_OPTIONS), data=data)
 
 
 # ==================== DATABASE ====================
@@ -37,9 +81,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
-
 
 def get_user_data(user_id):
     conn = sqlite3.connect("levels.db")
@@ -56,7 +98,6 @@ def get_user_data(user_id):
     conn.close()
     return data
 
-
 def update_user_data(user_id, xp, level):
     conn = sqlite3.connect("levels.db")
     cursor = conn.cursor()
@@ -66,7 +107,6 @@ def update_user_data(user_id, xp, level):
     )
     conn.commit()
     conn.close()
-
 
 def get_top_users():
     conn = sqlite3.connect("levels.db")
@@ -78,10 +118,8 @@ def get_top_users():
     conn.close()
     return data
 
-
 def get_xp_needed(level):
     return (level + 1) * 100
-
 
 def parse_duration(time_str: str) -> datetime.timedelta:
     match = re.match(r"^(\d+)([smhd])?$", time_str.lower())
@@ -101,13 +139,10 @@ def parse_duration(time_str: str) -> datetime.timedelta:
 
 
 # ==================== EVENTS ====================
-
-
 @bot.event
 async def on_ready():
     print(f"🚀 Bot udah jalan nih as {bot.user}!")
     print("Prefix: '.' | Ready buat dipake.")
-
 
 @bot.event
 async def on_message(message):
@@ -163,7 +198,6 @@ async def on_message(message):
             description="Halo! Mau order atau butuh bantuan? Langsung klik channel tiket di bawah biar aman ya!",
             color=0x3498DB,
         )
-
         embed.add_field(
             name="📦 Order Produk",
             value=f"👉 <#{TICKET_CHANNEL_ID}> (Pilih ` open-ticket `)",
@@ -187,8 +221,85 @@ async def on_message(message):
     await bot.process_commands(message)
 
 
-# ==================== COMMANDS LEVELING ====================
+# ==================== COMMANDS MUSIK ====================
 
+@bot.command(name="play", aliases=["p"])
+async def play_music(ctx, *, search: str):
+    """Memutar lagu dari YouTube (Judul / Link)"""
+    if not ctx.author.voice:
+        await ctx.send("⚠️ Masuk ke Voice Channel dulu bro!")
+        return
+
+    channel = ctx.author.voice.channel
+
+    if ctx.voice_client is None:
+        await channel.connect()
+    elif ctx.voice_client.channel != channel:
+        await ctx.voice_client.move_to(channel)
+
+    msg = await ctx.send("🔍 Lagi nyari lagunya...")
+
+    try:
+        player = await YTDLSource.from_url(search, loop=bot.loop, stream=True)
+        
+        if ctx.voice_client.is_playing():
+            ctx.voice_client.stop()
+            
+        ctx.voice_client.play(player, after=lambda e: print(f"Player error: {e}") if e else None)
+
+        embed = discord.Embed(
+            title="🎶 Sedang Memutar",
+            description=f"**[{player.title}]({player.url})**",
+            color=0x2ECC71
+        )
+        embed.set_footer(text=f"Diputar oleh {ctx.author.display_name}")
+        await msg.edit(content=None, embed=embed)
+
+    except Exception as e:
+        await msg.edit(content=f"❌ Gagal memutar lagu: {e}")
+
+
+@bot.command(name="pause")
+async def pause_music(ctx):
+    """Jedai lagu"""
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.pause()
+        await ctx.send("⏸️ Lagu dijeda.")
+    else:
+        await ctx.send("Gak ada lagu yang lagi diputar.")
+
+
+@bot.command(name="resume")
+async def resume_music(ctx):
+    """Lanjutin lagu"""
+    if ctx.voice_client and ctx.voice_client.is_paused():
+        ctx.voice_client.resume()
+        await ctx.send("▶️ Lagu dilanjutin lagi!")
+    else:
+        await ctx.send("Lagu lagi gak dijeda.")
+
+
+@bot.command(name="stop")
+async def stop_music(ctx):
+    """Stop pemutaran lagu"""
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+        await ctx.send("⏹️ Musik dihentikan.")
+    else:
+        await ctx.send("Gak ada lagu yang lagi diputar.")
+
+
+@bot.command(name="leave", aliases=["dc"])
+async def leave_vc(ctx):
+    """Keluar dari Voice Channel"""
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
+        await ctx.send("👋 Bot keluar dari Voice Channel.")
+    else:
+        await ctx.send("Bot lagi gak ada di Voice Channel mana pun.")
+
+
+# ==================== COMMANDS LEVELING ====================
 
 @bot.command(name="rank", aliases=["level"])
 async def check_rank(ctx, member: discord.Member = None):
@@ -278,13 +389,22 @@ async def set_level(ctx, member: discord.Member, new_level: int):
 
 # ==================== COMMANDS HELPER & UTILITY ====================
 
-
 @bot.command(name="info", aliases=["help"])
 async def show_info(ctx):
     embed = discord.Embed(
         title="📌 MENU PERINTAH BOT",
         description="Pake prefix titik (`.`) buat jalanin perintah ya:",
         color=0x3498DB,
+    )
+
+    embed.add_field(
+        name="🎵 Musik",
+        value="`.p [judul/link]` — Putar lagu\n"
+        "`.pause` — Jeda lagu\n"
+        "`.resume` — Lanjut lagu\n"
+        "`.stop` — Stop musik\n"
+        "`.leave` — Keluar Voice Channel",
+        inline=False,
     )
 
     embed.add_field(
@@ -299,21 +419,11 @@ async def show_info(ctx):
     embed.add_field(
         name="🛡️ Moderasi & Role",
         value="`.role @user [nama_role]` — Pasang/buat role otomatis\n"
-        "`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
-        "`.unto @user` — Unmute/Un-timeout\n"
+        "`.to @user [waktu] [alasan]` — Mute/Timeout\n"
+        "`.unto @user` — Unmute\n"
         "`.warn @user [alasan]` — Kasih teguran\n"
         "`.clear [jumlah]` — Hapus chat\n"
         "`.kick` / `.ban` — Out-kan member",
-        inline=False,
-    )
-
-    embed.add_field(
-        name="ℹ️ Info Store",
-        value="`.price` — Daftar harga & sewa\n"
-        "`.payment` — Metode pembayaran\n"
-        "`.userinfo` — Cek detail profil\n"
-        "`.serverinfo` — Info server\n"
-        "`.ping` — Cek jaringan bot",
         inline=False,
     )
 
@@ -324,10 +434,8 @@ async def show_info(ctx):
 @bot.command(name="role")
 @commands.has_permissions(manage_roles=True)
 async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
-    # 1. Cek apakah role sudah ada
     role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), ctx.guild.roles)
 
-    # 2. Kalau belum ada, buat role baru otomatis
     if not role:
         try:
             role = await ctx.guild.create_role(
@@ -339,7 +447,6 @@ async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
             await ctx.send(f"❌ Gagal buat role: {e}")
             return
 
-    # 3. Pasangkan role ke member
     try:
         if role in member.roles:
             await ctx.send(f"⚠️ {member.mention} udah punya role **{role.name}**!")
@@ -347,29 +454,19 @@ async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
             await member.add_roles(role)
             await ctx.send(f"✅ Role **{role.name}** berhasil dipasang ke {member.mention}!")
     except Exception as e:
-        await ctx.send(f"❌ Gagal masang role: {e}\n*(Pastikan posisi role bot ada di atas role yang mau dipasang di Server Settings)*")
+        await ctx.send(f"❌ Gagal masang role: {e}\n*(Pastikan posisi role bot ada di atas role yang mau dipasang)*")
 
 
 @bot.command(name="to", aliases=["timeout"])
 @commands.has_permissions(moderate_members=True)
-async def timeout_member(
-    ctx,
-    member: discord.Member,
-    duration_str: str = "10m",
-    *,
-    reason: str = "N/A",
-):
+async def timeout_member(ctx, member: discord.Member, duration_str: str = "10m", *, reason: str = "N/A"):
     duration = parse_duration(duration_str)
     if duration is None:
-        await ctx.send(
-            "⚠️ Format waktu salah! Contoh yang bener: `.to @user 10m` atau `.to @user 1h`"
-        )
+        await ctx.send("⚠️ Format waktu salah! Contoh: `.to @user 10m`")
         return
     try:
         await member.timeout(duration, reason=reason)
-        await ctx.send(
-            f"🤐 **{member.name}** kena timeout selama **{duration_str}** | Alasan: {reason}"
-        )
+        await ctx.send(f"🤐 **{member.name}** kena timeout selama **{duration_str}** | Alasan: {reason}")
     except Exception as e:
         await ctx.send(f"❌ Gagal: {e}")
 
@@ -386,9 +483,7 @@ async def untimeout_member(ctx, member: discord.Member):
 
 @bot.command(name="warn")
 @commands.has_permissions(moderate_members=True)
-async def warn_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
-):
+async def warn_member(ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."):
     embed = discord.Embed(
         title="⚠️ TEGURAN MODERASI",
         description=f"Peringatan buat {member.mention}",
@@ -400,9 +495,7 @@ async def warn_member(
 
 @bot.command(name="ban")
 @commands.has_permissions(ban_members=True)
-async def ban_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
-):
+async def ban_member(ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."):
     try:
         await member.ban(reason=reason)
         await ctx.send(f"🔨 **{member.name}** berhasil di-ban.")
@@ -412,9 +505,7 @@ async def ban_member(
 
 @bot.command(name="kick")
 @commands.has_permissions(kick_members=True)
-async def kick_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
-):
+async def kick_member(ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."):
     try:
         await member.kick(reason=reason)
         await ctx.send(f"👞 **{member.name}** berhasil di-kick.")
@@ -441,23 +532,11 @@ async def user_info(ctx, member: discord.Member = None):
     member = member or ctx.author
     roles = [role.mention for role in member.roles if role.name != "@everyone"]
 
-    embed = discord.Embed(
-        title=f"👤 Profile {member.name}", color=0x3498DB
-    )
-    embed.set_thumbnail(
-        url=member.avatar.url if member.avatar else member.default_avatar.url
-    )
+    embed = discord.Embed(title=f"👤 Profile {member.name}", color=0x3498DB)
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
     embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
-    embed.add_field(
-        name="Join Server",
-        value=member.joined_at.strftime("%d-%m-%Y"),
-        inline=True,
-    )
-    embed.add_field(
-        name=f"Role ({len(roles)})",
-        value=", ".join(roles) if roles else "Gak ada role",
-        inline=False,
-    )
+    embed.add_field(name="Join Server", value=member.joined_at.strftime("%d-%m-%Y"), inline=True)
+    embed.add_field(name=f"Role ({len(roles)})", value=", ".join(roles) if roles else "Gak ada role", inline=False)
     await ctx.send(embed=embed)
 
 
@@ -467,11 +546,7 @@ async def server_info(ctx):
     embed = discord.Embed(title=f"📊 Info Server {guild.name}", color=0x2ECC71)
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
-    embed.add_field(
-        name="Owner",
-        value=guild.owner.mention if guild.owner else "N/A",
-        inline=True,
-    )
+    embed.add_field(name="Owner", value=guild.owner.mention if guild.owner else "N/A", inline=True)
     embed.add_field(name="Total Member", value=f"`{guild.member_count}`", inline=True)
     embed.add_field(name="Total Role", value=f"`{len(guild.roles)}`", inline=True)
     await ctx.send(embed=embed)
@@ -484,16 +559,8 @@ async def show_price(ctx):
         description="Silakan buka tiket untuk detail order & info promo:",
         color=0x9B59B6,
     )
-    embed.add_field(
-        name="📱 Redfinger & Split",
-        value="• Jasa Split Redfinger\n• Sewa Cloud Phone / VIP",
-        inline=False,
-    )
-    embed.add_field(
-        name="🎫 Order Sekarang",
-        value=f"Langsung klik ke: <#{TICKET_CHANNEL_ID}>",
-        inline=False,
-    )
+    embed.add_field(name="📱 Redfinger & Split", value="• Jasa Split Redfinger\n• Sewa Cloud Phone / VIP", inline=False)
+    embed.add_field(name="🎫 Order Sekarang", value=f"Langsung klik ke: <#{TICKET_CHANNEL_ID}>", inline=False)
     embed.set_footer(text="TONGSOP Store")
     await ctx.send(embed=embed)
 
@@ -505,11 +572,7 @@ async def show_payment(ctx):
         description="Menerima pembayaran resmi via:",
         color=0xF1C40F,
     )
-    embed.add_field(
-        name="Pilihan Transfer",
-        value="• DANA / OVO / GoPay\n• QRIS All Payment\n• Bank Transfer",
-        inline=False,
-    )
+    embed.add_field(name="Pilihan Transfer", value="• DANA / OVO / GoPay\n• QRIS All Payment\n• Bank Transfer", inline=False)
     await ctx.send(embed=embed)
 
 
