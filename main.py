@@ -12,17 +12,16 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+# Mengubah Prefix menjadi titik '.'
+bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# ID Channel milik Anda
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 
-# Cooldown XP agar user tidak spamming (User ID: timestamp)
 xp_cooldowns = {}
 
 
-# ==================== DATABASE LEVELING (SQLite) ====================
+# DATABASE LEVELING (SQLite)
 def init_db():
     conn = sqlite3.connect("levels.db")
     cursor = conn.cursor()
@@ -73,14 +72,18 @@ def get_top_users():
     conn = sqlite3.connect("levels.db")
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT user_id, level, xp FROM users ORDER OR level DESC, xp DESC LIMIT 5"
+        "SELECT user_id, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 5"
     )
     data = cursor.fetchall()
     conn.close()
     return data
 
 
-# Helper Function: Parse durasi waktu
+# Helper Function XP Needed (Setiap level butuh 100 XP * (level + 1))
+def get_xp_needed(level):
+    return (level + 1) * 100
+
+
 def parse_duration(time_str: str) -> datetime.timedelta:
     match = re.match(r"^(\d+)([smhd])?$", time_str.lower())
     if not match:
@@ -101,7 +104,7 @@ def parse_duration(time_str: str) -> datetime.timedelta:
 @bot.event
 async def on_ready():
     print(f"=== BOT ONLINE SEBAGAI {bot.user} ===")
-    print("Bot siap melayani di channel general & sistem leveling aktif!")
+    print("Bot siap melayani! Gunakan prefix '.' untuk menjalankan perintah.")
 
 
 @bot.event
@@ -109,40 +112,37 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # 1. LOGIKA SISTEM LEVELING (Gaining XP)
+    # 1. SISTEM LEVELING (Gaining XP)
     now = datetime.datetime.now().timestamp()
     user_id = message.author.id
 
-    # Cek cooldown 60 detik per user
     if user_id not in xp_cooldowns or now - xp_cooldowns[user_id] > 60:
         xp_cooldowns[user_id] = now
         current_xp, current_level = get_user_data(user_id)
 
-        # Tambah XP acak antara 15 sampai 25
         gained_xp = random.randint(15, 25)
         new_xp = current_xp + gained_xp
-
-        # Rumus XP per Level: level_selanjutnya = 100 * (level ** 2) + 100
-        xp_needed = 100 * ((current_level + 1) ** 2)
+        xp_needed = get_xp_needed(current_level)
 
         if new_xp >= xp_needed:
             current_level += 1
+            new_xp = new_xp - xp_needed
             update_user_data(user_id, new_xp, current_level)
             try:
                 await message.channel.send(
-                    f"🎉 Selamat {message.author.mention}, level kamu naik ke **Level {current_level}**! 🚀"
+                    f"🎉 Selamat {message.author.mention}, kamu naik ke **Level {current_level}**! 🚀"
                 )
             except Exception:
                 pass
         else:
             update_user_data(user_id, new_xp, current_level)
 
-    # 2. Jika berupa perintah !, jalankan perintah
-    if message.content.startswith("!"):
+    # 2. Eksekusi Perintah
+    if message.content.startswith("."):
         await bot.process_commands(message)
         return
 
-    # 3. Respon otomatis tiket jika diketik di channel general
+    # 3. Respon otomatis tiket jika di channel general
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
@@ -187,13 +187,12 @@ async def on_message(message):
 # ==================== PERINTAH LEVELING ====================
 
 
-# 1. CEK RANK / LEVEL
 @bot.command(name="rank", aliases=["level"])
 async def check_rank(ctx, member: discord.Member = None):
-    """Cek level dan XP saat ini. Contoh: !rank atau !rank @user"""
+    """Cek level dan XP saat ini. Contoh: .rank"""
     target = member or ctx.author
     xp, level = get_user_data(target.id)
-    xp_needed = 100 * ((level + 1) ** 2)
+    xp_needed = get_xp_needed(level)
 
     embed = discord.Embed(
         title=f"📊 Status Level - {target.name}", color=discord.Color.green()
@@ -203,14 +202,13 @@ async def check_rank(ctx, member: discord.Member = None):
     )
     embed.add_field(name="Level saat ini", value=f"⭐ **{level}**", inline=True)
     embed.add_field(
-        name="Total XP", value=f"✨ **{xp} / {xp_needed} XP**", inline=True
+        name="XP Progress", value=f"✨ **{xp} / {xp_needed} XP**", inline=True
     )
-    embed.set_footer(text="Aktif mengobrol di channel untuk meningkatkan level!")
+    embed.set_footer(text="Gunakan prefix '.' untuk semua perintah bot TONGSOP")
 
     await ctx.send(embed=embed)
 
 
-# 2. LEADERBOARD LEVEL
 @bot.command(name="leaderboard", aliases=["lb", "top"])
 async def show_leaderboard(ctx):
     """Menampilkan 5 member dengan level tertinggi"""
@@ -237,15 +235,13 @@ async def show_leaderboard(ctx):
     await ctx.send(embed=embed)
 
 
-# 3. SET LEVEL (ADMIN ONLY)
 @bot.command(name="setlevel")
 @commands.has_permissions(administrator=True)
 async def set_level(ctx, member: discord.Member, new_level: int):
-    """Perintah Admin untuk mengubah level user. Contoh: !setlevel @user 5"""
-    calc_xp = 100 * (new_level**2)
-    update_user_data(member.id, calc_xp, new_level)
+    """Admin: Ubah level member. Contoh: .setlevel @user 5"""
+    update_user_data(member.id, 0, new_level)
     await ctx.send(
-        f"✅ Level untuk **{member.name}** berhasil diubah menjadi **Level {new_level}**!"
+        f"✅ Level untuk **{member.name}** berhasil diatur ke **Level {new_level}**!"
     )
 
 
@@ -254,43 +250,42 @@ async def set_level(ctx, member: discord.Member, new_level: int):
 
 @bot.command(name="info", aliases=["help"])
 async def show_info(ctx):
-    """Menampilkan daftar lengkap perintah bot"""
     embed = discord.Embed(
         title="ℹ️ INFORMASI BOT TONGSOP Assistant ℹ️",
-        description="Berikut adalah daftar perintah yang tersedia di server:",
+        description="Berikut daftar perintah yang tersedia di server (Prefix: `.`):",
         color=discord.Color.blue(),
     )
 
     embed.add_field(
         name="📈 Sistem Leveling",
-        value="• `!rank` / `!level` (Cek status level & XP kamu)\n"
-        "• `!leaderboard` / `!lb` (Lihat top level server)\n"
-        "• `!setlevel @user [level]` (Admin: ubah level member)",
+        value="• `.rank` / `.level` (Cek level & XP kamu)\n"
+        "• `.leaderboard` / `.lb` (Top level server)\n"
+        "• `.setlevel @user [level]` (Admin: ubah level)",
         inline=False,
     )
 
     embed.add_field(
-        name="🛡️ Moderasi (Admin/Mod)",
-        value="• `!to @user [durasi] [alasan]` (Contoh: `!to @user 1h Spam`)\n"
-        "• `!unto @user` (Membatalkan timeout)\n"
-        "• `!warn @user [alasan]` & `!clear [jumlah]`\n"
-        "• `!kick @user` & `!ban @user`",
+        name="🛡️ Moderasi",
+        value="• `.to @user [durasi] [alasan]` (Contoh: `.to @user 1h Spam`)\n"
+        "• `.unto @user` (Membatalkan timeout)\n"
+        "• `.warn @user [alasan]` & `.clear [jumlah]`\n"
+        "• `.kick @user` & `.ban @user`",
         inline=False,
     )
 
     embed.add_field(
-        name="📊 Informasi & Utility",
-        value="• `!price` (Daftar harga Prenstore)\n"
-        "• `!payment` (Metode pembayaran resmi)\n"
-        "• `!userinfo @user` & `!serverinfo` & `!ping`",
+        name="📊 Utility",
+        value="• `.price` (Harga Prenstore)\n"
+        "• `.payment` (Pembayaran resmi)\n"
+        "• `.userinfo @user` & `.serverinfo` & `.ping`",
         inline=False,
     )
 
-    embed.set_footer(text="TONGSOP Assistant • Gunakan prefix ! di awal perintah")
+    embed.set_footer(text="TONGSOP Assistant • Gunakan prefix '.' di awal perintah")
     await ctx.send(embed=embed)
 
 
-# ==================== PERINTAH MODERASI & LAINNYA ====================
+# ==================== PERINTAH MODERASI & UTILITY ====================
 
 
 @bot.command(name="to", aliases=["timeout"])
@@ -304,17 +299,15 @@ async def timeout_member(
 ):
     duration = parse_duration(duration_str)
     if duration is None:
-        await ctx.send(
-            "⚠️ Format waktu salah! Gunakan contoh: `10m` (10 menit), `1h` (1 jam)."
-        )
+        await ctx.send("⚠️ Format waktu salah! Contoh: `.to @user 10m`.")
         return
     try:
         await member.timeout(duration, reason=reason)
         await ctx.send(
-            f"🤐 **{member.name}** berhasil di-timeout selama **{duration_str}**. Alasan: {reason}"
+            f"🤐 **{member.name}** berhasil di-timeout selama **{duration_str}**."
         )
     except Exception as e:
-        await ctx.send(f"❌ Gagal melakukan timeout: {e}")
+        await ctx.send(f"❌ Gagal timeout: {e}")
 
 
 @bot.command(name="unto", aliases=["untimeout"])
@@ -322,19 +315,19 @@ async def timeout_member(
 async def untimeout_member(ctx, member: discord.Member):
     try:
         await member.timeout(None)
-        await ctx.send(f"🔊 Timeout untuk **{member.name}** telah dicabut!")
+        await ctx.send(f"🔊 Timeout **{member.name}** dicabut!")
     except Exception as e:
-        await ctx.send(f"❌ Gagal menghapus timeout: {e}")
+        await ctx.send(f"❌ Gagal: {e}")
 
 
 @bot.command(name="warn")
 @commands.has_permissions(moderate_members=True)
 async def warn_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan yang diberikan."
+    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
 ):
     embed = discord.Embed(
         title="⚠️ PERINGATAN RESMI ⚠️",
-        description=f"Member **{member.mention}** telah diberi peringatan oleh Admin/Moderator.",
+        description=f"Member **{member.mention}** diberi peringatan.",
         color=discord.Color.gold(),
     )
     embed.add_field(name="Alasan", value=reason, inline=False)
@@ -344,29 +337,25 @@ async def warn_member(
 @bot.command(name="ban")
 @commands.has_permissions(ban_members=True)
 async def ban_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan yang diberikan."
+    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
 ):
     try:
         await member.ban(reason=reason)
-        await ctx.send(
-            f"✅ **{member.name}** berhasil di-ban dari server. Alasan: {reason}"
-        )
+        await ctx.send(f"✅ **{member.name}** berhasil di-ban.")
     except Exception as e:
-        await ctx.send(f"❌ Gagal melakukan ban: {e}")
+        await ctx.send(f"❌ Gagal ban: {e}")
 
 
 @bot.command(name="kick")
 @commands.has_permissions(kick_members=True)
 async def kick_member(
-    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan yang diberikan."
+    ctx, member: discord.Member, *, reason: str = "Tidak ada alasan."
 ):
     try:
         await member.kick(reason=reason)
-        await ctx.send(
-            f"✅ **{member.name}** berhasil di-kick dari server. Alasan: {reason}"
-        )
+        await ctx.send(f"✅ **{member.name}** berhasil di-kick.")
     except Exception as e:
-        await ctx.send(f"❌ Gagal melakukan kick: {e}")
+        await ctx.send(f"❌ Gagal kick: {e}")
 
 
 @bot.command(name="clear")
@@ -467,11 +456,9 @@ async def show_payment(ctx):
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Anda tidak memiliki izin untuk menggunakan perintah ini!")
+        await ctx.send("❌ Anda tidak memiliki izin untuk perintah ini!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(
-            "⚠️ Argumen kurang lengkap! Ketik `!info` untuk melihat petunjuk."
-        )
+        await ctx.send("⚠️ Argumen tidak lengkap! Ketik `.info`.")
     elif isinstance(error, commands.CommandNotFound):
         return
     else:
