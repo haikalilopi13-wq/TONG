@@ -445,7 +445,7 @@ async def clear_messages(ctx, amount: int = 5):
 @bot.command(name="ping")
 async def check_ping(ctx):
     latency = round(bot.latency * 1000)
-    await ctx.send(f"🏓 **Pong!** Latensi bot saat ini: `{latency}ms`")
+    await ctx.send(f"**Pong!** Latensi bot saat ini: `{latency}ms`")
 
 
 @bot.command(name="userinfo", aliases=["whois"])
