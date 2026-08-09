@@ -22,19 +22,19 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # Abaikan jika pesan dikirim oleh bot sendiri atau bot lain
+    # Abaikan jika pesan dikirim oleh bot
     if message.author.bot:
         return
 
-    # Kunci hanya berjalan di channel general
+    # Hanya berjalan jika pesan diketik di channel general
     if message.channel.id == GENERAL_CHANNEL_ID:
 
-        # 1. CARI DAN HAPUS PESAN BOT LAMA DI CHANNEL GENERAL
+        # 1. CARI DAN HAPUS PESAN EMBED LAMA MILIK BOT INI SAJA
         try:
-            async for old_message in message.channel.history(limit=20):
-                # Jika pesan dikirim oleh bot ini dan memiliki Embed, hapus pesan tersebut
-                if old_message.author == bot.user and old_message.embeds:
-                    await old_message.delete()
+            async for old_msg in message.channel.history(limit=15):
+                if old_msg.author.id == bot.user.id and len(old_msg.embeds) > 0:
+                    await old_msg.delete()
+                    await asyncio.sleep(0.5)  # Beri jeda kecil agar proses hapus selesai sempurna
         except Exception as e:
             print(f"Gagal menghapus pesan bot lama: {e}")
 
@@ -65,7 +65,7 @@ async def on_message(message):
 
         embed.set_footer(text="TONGSOP Assistant • Klik channel tiket di atas")
 
-        # 3. KIRIM EMBED TIKET TERBARU
+        # 3. KIRIM EMBED BARU MENTION USER YANG SEDANG CHAT
         await message.channel.send(content=f"{message.author.mention}", embed=embed)
 
         return
