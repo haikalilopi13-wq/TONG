@@ -12,7 +12,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Mengubah Prefix menjadi titik '.'
+# Menggunakan Prefix '.'
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 GENERAL_CHANNEL_ID = 1518084729122062488
@@ -21,7 +21,7 @@ TICKET_CHANNEL_ID = 1517625110536786050
 xp_cooldowns = {}
 
 
-# DATABASE LEVELING (SQLite)
+# ==================== DATABASE LEVELING (SQLite) ====================
 def init_db():
     conn = sqlite3.connect("levels.db")
     cursor = conn.cursor()
@@ -79,7 +79,7 @@ def get_top_users():
     return data
 
 
-# Helper Function XP Needed (Setiap level butuh 100 XP * (level + 1))
+# Helper Function XP Needed
 def get_xp_needed(level):
     return (level + 1) * 100
 
@@ -112,7 +112,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # 1. SISTEM LEVELING (Gaining XP)
+    # 1. SISTEM LEVELING OTOMATIS (Gaining XP)
     now = datetime.datetime.now().timestamp()
     user_id = message.author.id
 
@@ -235,10 +235,30 @@ async def show_leaderboard(ctx):
     await ctx.send(embed=embed)
 
 
+@bot.command(name="addxp")
+@commands.has_permissions(administrator=True)
+async def add_xp(ctx, member: discord.Member, amount: int):
+    """Admin: Menambah XP ke member. Contoh: .addxp @user 200"""
+    current_xp, current_level = get_user_data(member.id)
+    new_xp = current_xp + amount
+    xp_needed = get_xp_needed(current_level)
+
+    while new_xp >= xp_needed:
+        new_xp -= xp_needed
+        current_level += 1
+        xp_needed = get_xp_needed(current_level)
+
+    update_user_data(member.id, new_xp, current_level)
+    await ctx.send(
+        f"✅ Berhasil menambahkan **{amount} XP** untuk {member.mention}.\n"
+        f"📊 Status sekarang: **Level {current_level}** | **{new_xp}/{xp_needed} XP**"
+    )
+
+
 @bot.command(name="setlevel")
 @commands.has_permissions(administrator=True)
 async def set_level(ctx, member: discord.Member, new_level: int):
-    """Admin: Ubah level member. Contoh: .setlevel @user 5"""
+    """Admin: Ubah level member secara langsung. Contoh: .setlevel @user 5"""
     update_user_data(member.id, 0, new_level)
     await ctx.send(
         f"✅ Level untuk **{member.name}** berhasil diatur ke **Level {new_level}**!"
@@ -260,6 +280,7 @@ async def show_info(ctx):
         name="📈 Sistem Leveling",
         value="• `.rank` / `.level` (Cek level & XP kamu)\n"
         "• `.leaderboard` / `.lb` (Top level server)\n"
+        "• `.addxp @user [jumlah]` (Admin: tambah XP)\n"
         "• `.setlevel @user [level]` (Admin: ubah level)",
         inline=False,
     )
