@@ -196,7 +196,6 @@ async def check_rank(ctx, member: discord.Member = None):
     xp, level = get_user_data(target.id)
     xp_needed = get_xp_needed(level)
 
-    # Simple Progress Bar
     percent = int((xp / xp_needed) * 100) if xp_needed > 0 else 0
     filled = int(10 * (xp / xp_needed)) if xp_needed > 0 else 0
     bar = "🟩" * filled + "⬛" * (10 - filled)
@@ -298,8 +297,9 @@ async def show_info(ctx):
     )
 
     embed.add_field(
-        name="🛡️ Moderasi",
-        value="`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
+        name="🛡️ Moderasi & Role",
+        value="`.role @user [nama_role]` — Pasang/buat role otomatis\n"
+        "`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
         "`.unto @user` — Unmute/Un-timeout\n"
         "`.warn @user [alasan]` — Kasih teguran\n"
         "`.clear [jumlah]` — Hapus chat\n"
@@ -319,6 +319,35 @@ async def show_info(ctx):
 
     embed.set_footer(text="TONGSOP Assistant")
     await ctx.send(embed=embed)
+
+
+@bot.command(name="role")
+@commands.has_permissions(manage_roles=True)
+async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
+    # 1. Cek apakah role sudah ada
+    role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), ctx.guild.roles)
+
+    # 2. Kalau belum ada, buat role baru otomatis
+    if not role:
+        try:
+            role = await ctx.guild.create_role(
+                name=role_name,
+                reason=f"Dibuat otomatis oleh {ctx.author.name} via .role"
+            )
+            await ctx.send(f"✨ Role **{role_name}** belum ada, otomatis dibuatin baru!")
+        except Exception as e:
+            await ctx.send(f"❌ Gagal buat role: {e}")
+            return
+
+    # 3. Pasangkan role ke member
+    try:
+        if role in member.roles:
+            await ctx.send(f"⚠️ {member.mention} udah punya role **{role.name}**!")
+        else:
+            await member.add_roles(role)
+            await ctx.send(f"✅ Role **{role.name}** berhasil dipasang ke {member.mention}!")
+    except Exception as e:
+        await ctx.send(f"❌ Gagal masang role: {e}\n*(Pastikan posisi role bot ada di atas role yang mau dipasang di Server Settings)*")
 
 
 @bot.command(name="to", aliases=["timeout"])
