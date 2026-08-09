@@ -9,7 +9,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ID Channel milik Anda
+# ID Channel milik Anda (Format Angka Murni)
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 
@@ -22,11 +22,10 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # Agar bot tidak merespons dirinya sendiri atau bot lain
     if message.author.bot:
         return
 
-    # === PENGUNCI: KODE HANYA AKAN JALAN DI CHANNEL GENERAL ANDA ===
+    # Kunci hanya berjalan di channel general
     if message.channel.id == GENERAL_CHANNEL_ID:
 
         embed = discord.Embed(
@@ -35,16 +34,15 @@ async def on_message(message):
             color=discord.Color.blue(),
         )
 
-        # Menampilkan tautan/mention ke channel tiket kamu
         embed.add_field(
             name="🛒 Pembelian Produk Prenstore",
-            value=f"• <#{1517625110536786050}> • ` open-ticket `",
+            value=f"• <#{TICKET_CHANNEL_ID}> • ` open-ticket `",
             inline=False,
         )
 
         embed.add_field(
             name="👥 Layanan jasa split Redfinger",
-            value=f"• <#{1517625110536786050}> • ` jasa split `",
+            value=f"• <#{TICKET_CHANNEL_ID}> • ` jasa split `",
             inline=False,
         )
 
@@ -59,7 +57,7 @@ async def on_message(message):
         # 1. Kirim embed ke channel general
         await message.channel.send(content=f"{message.author.mention}", embed=embed)
 
-        # 2. Hapus pesan asli dari user setelah 2 detik agar channel tetap bersih
+        # 2. Hapus pesan asli dari user setelah 2 detik
         try:
             await asyncio.sleep(2)
             await message.delete()
@@ -68,12 +66,11 @@ async def on_message(message):
         except discord.errors.NotFound:
             pass
 
-        return  # Berhenti di sini agar tidak memproses apapun lagi di channel general
+        return
 
     await bot.process_commands(message)
 
 
-# Mengabaikan error jika mengetik command salah
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
@@ -81,7 +78,9 @@ async def on_command_error(ctx, error):
     raise error
 
 
-# Mengambil Token dari Environment Variable Railway (BOT_TOKEN)
-TOKEN = os.getenv("MTUxODA2MjYxODUxNzA0NTMxMQ.GZFDAw.u-Iv_6ZgwVw1QUaX4YoGO8S6Q7PuFvCZhdfVcQ")
+TOKEN = os.getenv("BOT_TOKEN")
 
-bot.run(TOKEN)
+if not TOKEN:
+    print("ERROR: BOT_TOKEN tidak ditemukan di Environment Variables Railway!")
+else:
+    bot.run(TOKEN)
