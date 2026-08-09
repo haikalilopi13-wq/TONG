@@ -9,7 +9,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ID Channel milik Anda (Format Angka Murni)
+# ID Channel milik Anda
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 
@@ -22,12 +22,23 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    # Abaikan jika pesan dikirim oleh bot sendiri atau bot lain
     if message.author.bot:
         return
 
     # Kunci hanya berjalan di channel general
     if message.channel.id == GENERAL_CHANNEL_ID:
 
+        # 1. CARI DAN HAPUS PESAN BOT LAMA DI CHANNEL GENERAL
+        try:
+            async for old_message in message.channel.history(limit=20):
+                # Jika pesan dikirim oleh bot ini dan memiliki Embed, hapus pesan tersebut
+                if old_message.author == bot.user and old_message.embeds:
+                    await old_message.delete()
+        except Exception as e:
+            print(f"Gagal menghapus pesan bot lama: {e}")
+
+        # 2. BUAT EMBED TIKET BARU
         embed = discord.Embed(
             title="👋 TONGSOP DI SINI! 👋",
             description="Halo! Untuk keamanan dan kenyamanan bertransaksi, silakan gunakan jalur resmi yang telah kami sediakan untuk melayani Anda :",
@@ -54,17 +65,8 @@ async def on_message(message):
 
         embed.set_footer(text="TONGSOP Assistant • Klik channel tiket di atas")
 
-        # 1. Kirim embed ke channel general
+        # 3. KIRIM EMBED TIKET TERBARU
         await message.channel.send(content=f"{message.author.mention}", embed=embed)
-
-        # 2. Hapus pesan asli dari user setelah 2 detik
-        try:
-            await asyncio.sleep(2)
-            await message.delete()
-        except discord.errors.Forbidden:
-            print("Bot butuh izin 'Manage Messages' untuk menghapus pesan user.")
-        except discord.errors.NotFound:
-            pass
 
         return
 
