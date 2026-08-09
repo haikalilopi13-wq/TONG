@@ -1,1 +1,4 @@
 ffmpeg
+libsodium-dev
+build-essential
+python3-dev
