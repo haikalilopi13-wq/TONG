@@ -218,38 +218,44 @@ async def check_rank(ctx, member: discord.Member = None):
 async def show_leaderboard(ctx):
     top_users = get_top_users()
 
-    embed = discord.Embed(
-        title="🏆 TOP 5 MEMBER TERAKTIF",
-        description="Daftar member paling rajin nimbrung dan aktif di server:",
-        color=0xF1C40F,
-    )
-
     if not top_users:
-        embed.description = "Belum ada data member."
-    else:
-        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-        for i, (u_id, lvl, xp) in enumerate(top_users):
-            user = bot.get_user(u_id)
-            if not user:
-                try:
-                    user = await bot.fetch_user(u_id)
-                except Exception:
-                    user = None
+        await ctx.send("❌ Belum ada data member di leaderboard.")
+        return
 
-            name = user.name if user else f"User ID: {u_id}"
-            xp_needed = get_xp_needed(lvl)
-            percent = int((xp / xp_needed) * 100) if xp_needed > 0 else 0
-            
-            embed.add_field(
-                name=f"{medals[i]} {name}",
-                value=f"• **Level:** {lvl}\n• **XP:** {xp} / {xp_needed} ({percent}%)\n• **ID:** `{u_id}`",
-                inline=False,
-            )
+    medals = ["#1", "#2", "#3", "#4", "#5"]
+    leaderboard_text = f"### 🌐 {ctx.guild.name}'s Server\n"
+    leaderboard_text += "```ansi\n"
 
-    if ctx.guild.icon:
-        embed.set_thumbnail(url=ctx.guild.icon.url)
+    for i, (u_id, lvl, xp) in enumerate(top_users):
+        user = bot.get_user(u_id)
+        if not user:
+            try:
+                user = await bot.fetch_user(u_id)
+            except Exception:
+                user = None
+
+        name = f"@{user.name}" if user else f"@User_{u_id}"
+        rank_num = medals[i] if i < len(medals) else f"#{i+1}"
         
-    embed.set_footer(text=f"Diminta oleh {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+        xp_needed = get_xp_needed(lvl)
+        progress = int((xp / xp_needed) * 10) if xp_needed > 0 else 0
+        progress = max(0, min(progress, 10))
+        bar = "█" * progress + "░" * (10 - progress)
+
+        leaderboard_text += f"{rank_num}  •  {name:<12}  •  LVL: {lvl}\n"
+        leaderboard_text += f"[{bar}]\n\n"
+
+    leaderboard_text += "```"
+
+    embed = discord.Embed(
+        description=leaderboard_text,
+        color=0x2B2D31
+    )
+    
+    if ctx.guild.icon:
+        embed.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
+    
+    embed.set_footer(text="Overall XP • Tongsop Bot System")
     await ctx.send(embed=embed)
 
 
@@ -303,7 +309,7 @@ async def show_info(ctx):
     embed.add_field(
         name="🎮 Leveling",
         value="`.rank` — Cek level & XP kamu\n"
-         "`.lb` — Top 5 member teraktif (Profil)\n"
+         "`.lb` — Top 5 member teraktif (Card Layout)\n"
          "`.addxp @user [xp]` — Tambah XP (Admin)\n"
          "`.setlevel @user [lvl]` — Set level (Admin)",
         inline=False,
