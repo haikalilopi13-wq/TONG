@@ -22,7 +22,7 @@ TICKET_CHANNEL_ID = 1517625110536786050
 
 xp_cooldowns = {}
 
-# Config YT-DLP & FFmpeg
+# Config YT-DLP & FFmpeg (Dilengkapi cookiefile untuk bypass blokir YouTube)
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'extractaudio': True,
@@ -37,6 +37,7 @@ YTDL_OPTIONS = {
     'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0',
+    'cookiefile': 'cookies.txt',  # Wajib ada file cookies.txt di folder yang sama
 }
 
 FFMPEG_OPTIONS = {
