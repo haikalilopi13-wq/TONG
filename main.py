@@ -253,7 +253,7 @@ async def play_music(ctx, *, search: str):
         elif ctx.voice_client.channel != channel:
             await ctx.voice_client.move_to(channel)
     except Exception as e:
-        await ctx.send(f"❌ Gagal masuk Voice Channel: `{e}`\n*(Pastikan PyNaCl terinstall)*")
+        await ctx.send(f"❌ Gagal masuk Voice Channel: `{e}`")
         return
 
     msg = await ctx.send("🔍 Lagi nyari lagunya...")
@@ -278,6 +278,16 @@ async def play_music(ctx, *, search: str):
 
     except Exception as e:
         await msg.edit(content=f"❌ Gagal memutar lagu: `{e}`")
+
+
+@bot.command(name="skip", aliases=["s"])
+async def skip_music(ctx):
+    """Melewati lagu yang sedang diputar"""
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+        await ctx.send("⏭️ Lagu dilewati!")
+    else:
+        await ctx.send("Gak ada lagu yang lagi diputar buat di-skip.")
 
 
 @bot.command(name="pause")
@@ -423,6 +433,7 @@ async def show_info(ctx):
     embed.add_field(
         name="🎵 Musik",
         value="`.p [judul/link]` — Putar lagu\n"
+        "`.skip` / `.s` — Lewati lagu\n"
         "`.pause` — Jeda lagu\n"
         "`.resume` — Lanjut lagu\n"
         "`.stop` — Stop musik\n"
