@@ -220,7 +220,7 @@ async def show_leaderboard(ctx):
 
     embed = discord.Embed(
         title="🏆 TOP 5 MEMBER TERAKTIF",
-        description="Daftar member paling rajin nimbrung di server:",
+        description="Daftar member paling rajin nimbrung dan aktif di server:",
         color=0xF1C40F,
     )
 
@@ -230,13 +230,26 @@ async def show_leaderboard(ctx):
         medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
         for i, (u_id, lvl, xp) in enumerate(top_users):
             user = bot.get_user(u_id)
+            if not user:
+                try:
+                    user = await bot.fetch_user(u_id)
+                except Exception:
+                    user = None
+
             name = user.name if user else f"User ID: {u_id}"
+            xp_needed = get_xp_needed(lvl)
+            percent = int((xp / xp_needed) * 100) if xp_needed > 0 else 0
+            
             embed.add_field(
                 name=f"{medals[i]} {name}",
-                value=f"Level **{lvl}** • `{xp} XP`",
+                value=f"• **Level:** {lvl}\n• **XP:** {xp} / {xp_needed} ({percent}%)\n• **ID:** `{u_id}`",
                 inline=False,
             )
 
+    if ctx.guild.icon:
+        embed.set_thumbnail(url=ctx.guild.icon.url)
+        
+    embed.set_footer(text=f"Diminta oleh {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
     await ctx.send(embed=embed)
 
 
@@ -290,7 +303,7 @@ async def show_info(ctx):
     embed.add_field(
         name="🎮 Leveling",
         value="`.rank` — Cek level & XP kamu\n"
-         "`.lb` — Top 5 member paling aktif\n"
+         "`.lb` — Top 5 member teraktif (Profil)\n"
          "`.addxp @user [xp]` — Tambah XP (Admin)\n"
          "`.setlevel @user [lvl]` — Set level (Admin)",
         inline=False,
@@ -300,7 +313,7 @@ async def show_info(ctx):
         name="🛡️ Moderasi & Role",
         value="`.role @user [nama_role]` — Pasang/buat role otomatis\n"
          "`.nick @user [nama]` — Ubah/reset nama member\n"
-         "`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
+         "`.to @user [waktu] [alasan]` — Mute/Timeout\n"
          "`.unto @user` — Unmute/Un-timeout\n"
          "`.warn @user [alasan]` — Kasih teguran\n"
          "`.clear [jumlah]` — Hapus chat\n"
@@ -309,10 +322,10 @@ async def show_info(ctx):
     )
 
     embed.add_field(
-        name="ℹ️ Info Store",
-        value="`.price` — Daftar harga & sewa\n"
+        name="ℹ️ Info Store & Akun",
+        value="`.akun` / `.userinfo` — Cek detail profil akun\n"
+         "`.price` — Daftar harga & sewa\n"
          "`.payment` — Metode pembayaran\n"
-         "`.userinfo` — Cek detail profil\n"
          "`.serverinfo` — Info server\n"
          "`.ping` — Cek jaringan bot",
         inline=False,
@@ -325,10 +338,8 @@ async def show_info(ctx):
 @bot.command(name="role")
 @commands.has_permissions(manage_roles=True)
 async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
-    # 1. Cek apakah role sudah ada
     role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), ctx.guild.roles)
 
-    # 2. Kalau belum ada, buat role baru otomatis
     if not role:
         try:
             role = await ctx.guild.create_role(
@@ -340,7 +351,6 @@ async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
             await ctx.send(f"❌ Gagal buat role: {e}")
             return
 
-    # 3. Pasangkan role ke member
     try:
         if role in member.roles:
             await ctx.send(f"⚠️ {member.mention} udah punya role **{role.name}**!")
@@ -451,28 +461,39 @@ async def check_ping(ctx):
     await ctx.send(f"🏓 Pong! Speed bot: `{round(bot.latency * 1000)}ms`")
 
 
-@bot.command(name="userinfo", aliases=["whois"])
+@bot.command(name="userinfo", aliases=["whois", "akun"])
 async def user_info(ctx, member: discord.Member = None):
+    """Melihat detail profil atau akun member di server"""
     member = member or ctx.author
-    roles = [role.mention for role in member.roles if role.name != "@everyone"]
+    
+    roles = [role.mention for role in reversed(member.roles) if role.name != "@everyone"]
+    created_at = member.created_at.strftime("%d %B %Y (%H:%M)")
+    joined_at = member.joined_at.strftime("%d %B %Y (%H:%M)") if member.joined_at else "Tidak diketahui"
 
     embed = discord.Embed(
-        title=f"👤 Profile {member.name}", color=0x3498DB
+        title=f"👤 Informasi Akun — {member.name}", 
+        color=0x3498DB,
+        timestamp=datetime.datetime.now()
     )
+    
     embed.set_thumbnail(
         url=member.avatar.url if member.avatar else member.default_avatar.url
     )
-    embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
+    
+    embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+    embed.add_field(name="📌 Nama Panggilan", value=f"{member.display_name}", inline=True)
+    embed.add_field(name="🤖 Bot?", value="Iya" if member.bot else "Tidak", inline=True)
+    
+    embed.add_field(name="📅 Akun Dibuat", value=created_at, inline=False)
+    embed.add_field(name="📥 Bergabung di Server", value=joined_at, inline=False)
+    
     embed.add_field(
-        name="Join Server",
-        value=member.joined_at.strftime("%d-%m-%Y"),
-        inline=True,
+        name=f"🏷️ Role ({len(roles)})",
+        value=", ".join(roles) if roles else "Tidak ada role",
+        inline=False
     )
-    embed.add_field(
-        name=f"Role ({len(roles)})",
-        value=", ".join(roles) if roles else "Gak ada role",
-        inline=False,
-    )
+    
+    embed.set_footer(text=f"Diminta oleh {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
     await ctx.send(embed=embed)
 
 
