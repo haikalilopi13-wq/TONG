@@ -290,30 +290,31 @@ async def show_info(ctx):
     embed.add_field(
         name="🎮 Leveling",
         value="`.rank` — Cek level & XP kamu\n"
-        "`.lb` — Top 5 member paling aktif\n"
-        "`.addxp @user [xp]` — Tambah XP (Admin)\n"
-        "`.setlevel @user [lvl]` — Set level (Admin)",
+         "`.lb` — Top 5 member paling aktif\n"
+         "`.addxp @user [xp]` — Tambah XP (Admin)\n"
+         "`.setlevel @user [lvl]` — Set level (Admin)",
         inline=False,
     )
 
     embed.add_field(
         name="🛡️ Moderasi & Role",
         value="`.role @user [nama_role]` — Pasang/buat role otomatis\n"
-        "`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
-        "`.unto @user` — Unmute/Un-timeout\n"
-        "`.warn @user [alasan]` — Kasih teguran\n"
-        "`.clear [jumlah]` — Hapus chat\n"
-        "`.kick` / `.ban` — Out-kan member",
+         "`.nick @user [nama]` — Ubah/reset nama member\n"
+         "`.to @user [waktu] [alasan]` — Mute/Timeout (cth: `.to @user 1h`)\n"
+         "`.unto @user` — Unmute/Un-timeout\n"
+         "`.warn @user [alasan]` — Kasih teguran\n"
+         "`.clear [jumlah]` — Hapus chat\n"
+         "`.kick` / `.ban` — Out-kan member",
         inline=False,
     )
 
     embed.add_field(
         name="ℹ️ Info Store",
         value="`.price` — Daftar harga & sewa\n"
-        "`.payment` — Metode pembayaran\n"
-        "`.userinfo` — Cek detail profil\n"
-        "`.serverinfo` — Info server\n"
-        "`.ping` — Cek jaringan bot",
+         "`.payment` — Metode pembayaran\n"
+         "`.userinfo` — Cek detail profil\n"
+         "`.serverinfo` — Info server\n"
+         "`.ping` — Cek jaringan bot",
         inline=False,
     )
 
@@ -348,6 +349,20 @@ async def give_or_create_role(ctx, member: discord.Member, *, role_name: str):
             await ctx.send(f"✅ Role **{role.name}** berhasil dipasang ke {member.mention}!")
     except Exception as e:
         await ctx.send(f"❌ Gagal masang role: {e}\n*(Pastikan posisi role bot ada di atas role yang mau dipasang di Server Settings)*")
+
+
+@bot.command(name="nick", aliases=["setnick"])
+@commands.has_permissions(manage_nicknames=True)
+async def change_nickname(ctx, member: discord.Member, *, new_nick: str = None):
+    """Mengubah nickname member di server"""
+    try:
+        await member.edit(nick=new_nick)
+        if new_nick:
+            await ctx.send(f"✅ Berhasil mengubah nickname {member.mention} menjadi **{new_nick}**.")
+        else:
+            await ctx.send(f"✅ Berhasil mereset nickname {member.mention} ke nama aslinya.")
+    except Exception as e:
+        await ctx.send(f"❌ Gagal mengubah nickname: {e}\n*(Pastikan posisi role bot berada di atas role member yang ingin diubah)*")
 
 
 @bot.command(name="to", aliases=["timeout"])
