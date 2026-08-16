@@ -29,7 +29,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Embed Rapi, Mention Klik Profil, & Fitur Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Embed, .quote, & Fitur Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -130,7 +130,7 @@ async def show_info(ctx):
     )
     embed.add_field(
         name="🎮 Fun, Games & Hiburan",
-        value="`.roll` — Dadu | `.coinflip` — Koin | `.rps` — Suit | `.rate` — Nilai",
+        value="`.roll` — Dadu | `.coinflip` — Koin | `.rps` — Suit | `.rate` — Nilai | `.quote` — Katabijak",
         inline=False
     )
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
