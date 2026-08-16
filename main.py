@@ -29,7 +29,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Baris Rapi (Style Gambar), .pp, Leveling, & Moderasi Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard List Format Baris, .pp, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -116,7 +116,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 10 Leaderboard Baris Rapi\n"
+              "`.top` / `.lb` — Cek Top 10 Leaderboard Baris\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -136,7 +136,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 10 FORMAT BARIS (GAYA SEPERTI GAMBAR) ---
+# --- LEADERBOARD TOP 10 FORMAT BARIS (STYLE GAMBAR) ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -147,7 +147,6 @@ async def show_leaderboard(ctx):
     sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
 
     leaderboard_lines = []
-    medals = ["#1", "#2", "#3"]
 
     # Ambil hingga Top 10 member teratas
     for i, (user_id, data) in enumerate(sorted_users[:10]):
