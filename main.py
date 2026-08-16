@@ -31,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Ganda & Tombol Terpisah (Close & Rating)!")
+    print("🚀 Bot siap dengan Sistem Ganda & Ulasan Teks Kustom!")
 
 @bot.event
 async def on_message(message):
@@ -67,24 +67,43 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ==================== VIEW PILIHAN BINTANG RATING ====================
-class RatingChoiceView(discord.ui.View):
-    def __init__(self, ticket_opener: discord.Member):
-        super().__init__(timeout=60)
+# ==================== MODAL ULASAN TEKS PEMBELI ====================
+class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
+    def __init__(self, ticket_opener: discord.Member, rating_bintang: str):
+        super().__init__()
         self.ticket_opener = ticket_opener
+        self.rating_bintang = rating_bintang
 
-    async def send_testimoni(self, interaction: discord.Interaction, rating_text: str, color_code: int):
+        # Menambahkan input teks untuk ulasan bebas dari pembeli
+        self.ulasan_teks = discord.ui.TextInput(
+            label="Ulasan / Pesan Anda",
+            placeholder="Contoh: Pelayanannya sangat cepat dan ramah sekali!",
+            style=discord.TextStyle.paragraph,
+            required=True,
+            max_length=300
+        )
+        self.add_item(self.ulasan_teks)
+
+    async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
 
+        # Tentukan warna embed berdasarkan rating
+        if "5" in self.rating_bintang:
+            color_code = 0x2ECC71
+        elif "3" in self.rating_bintang:
+            color_code = 0x3498DB
+        else:
+            color_code = 0xE74C3C
+
         testi_embed = discord.Embed(
-            title="⭐ TESTIMONI & RATING PELANGGAN",
+            title="⭐ TESTIMONI & ULASAN PELANGGAN",
             description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
             color=color_code
         )
         testi_embed.add_field(name="👤 Pembeli / Klien", value=self.ticket_opener.mention, inline=True)
-        testi_embed.add_field(name="🏆 Penilaian", value=rating_text, inline=True)
-        testi_embed.add_field(name="🛠️ Dinilai Oleh", value=interaction.user.mention, inline=False)
+        testi_embed.add_field(name="🏆 Penilaian", value=self.rating_bintang, inline=True)
+        testi_embed.add_field(name="💬 Ulasan Pembeli", value=f"*{self.ulasan_teks.value}*", inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
         if testi_channel:
@@ -93,19 +112,25 @@ class RatingChoiceView(discord.ui.View):
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim ke channel testi.", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel testi.", ephemeral=True)
+
+# ==================== VIEW PILIHAN BINTANG RATING ====================
+class RatingChoiceView(discord.ui.View):
+    def __init__(self, ticket_opener: discord.Member):
+        super().__init__(timeout=60)
+        self.ticket_opener = ticket_opener
 
     @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
     async def rate_5(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.send_testimoni(interaction, "⭐⭐⭐⭐⭐ (Sangat Puas)", 0x2ECC71)
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐⭐⭐ (Sangat Puas)"))
 
     @discord.ui.button(label="⭐ 3 (Cukup)", style=discord.ButtonStyle.blurple)
     async def rate_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.send_testimoni(interaction, "⭐⭐⭐ (Cukup)", 0x3498DB)
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐ (Cukup)"))
 
     @discord.ui.button(label="⭐ 1 (Kurang)", style=discord.ButtonStyle.red)
     async def rate_1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.send_testimoni(interaction, "⭐ (Kurang)", 0xE74C3C)
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐ (Kurang)"))
 
 # ==================== TOMBOL KONTROL TERPISAH (CLOSE & RATING) ====================
 class TicketControlView(discord.ui.View):
@@ -127,16 +152,16 @@ class TicketControlView(discord.ui.View):
         except Exception:
             pass
 
-    # Tombol 2: Khusus Memberi Rating
-    @discord.ui.button(label="⭐ Beri Rating", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_only")
+    # Tombol 2: Khusus Memberi Rating & Ulasan
+    @discord.ui.button(label="⭐ Beri Rating & Ulasan", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_only")
     async def rate_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
-            await interaction.response.send_message("❌ Hanya pembuat tiket yang dapat memberikan rating!", ephemeral=True)
+            await interaction.response.send_message("❌ Hanya pembuat tiket yang dapat memberikan ulasan!", ephemeral=True)
             return
 
         embed = discord.Embed(
             title="⭐ PILIH RATING PELAYANAN",
-            description="Silakan pilih tingkat kepuasan Anda di bawah ini:",
+            description="Silakan pilih tingkat kepuasan Anda terlebih dahulu:",
             color=0xF1C40F
         )
         await interaction.response.send_message(embed=embed, view=RatingChoiceView(self.ticket_opener), ephemeral=True)
@@ -202,7 +227,7 @@ class BuyModal(discord.ui.Modal, title="BUY"):
             ticket_embed.add_field(name="📦 Mau Beli", value=produk, inline=False)
             ticket_embed.add_field(name="🔢 Jumlah", value=jml, inline=False)
             ticket_embed.add_field(name="👤 Roblox Username", value=roblox_name, inline=False)
-            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi rating atau menutup tiket.")
+            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi ulasan atau menutup tiket.")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
@@ -282,7 +307,7 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
             ticket_embed.add_field(name="📦 Paket", value=pkt, inline=False)
             ticket_embed.add_field(name="🔢 Jumlah Slot Split", value=jml, inline=False)
             ticket_embed.add_field(name="📝 Catatan / User", value=catatan, inline=False)
-            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi rating atau menutup tiket.")
+            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi ulasan atau menutup tiket.")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
