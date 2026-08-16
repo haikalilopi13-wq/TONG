@@ -29,7 +29,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Top 3 tampilan baru, .pp, Leveling, & Moderasi Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Baris Rapi (Style Gambar), .pp, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -116,7 +116,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 3 leaderboard rapi + avatar\n"
+              "`.top` / `.lb` — Cek Top 10 Leaderboard Baris Rapi\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -136,7 +136,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 3 DENGAN PROFIL/AVATAR (@top / @lb) ---
+# --- LEADERBOARD TOP 10 FORMAT BARIS (GAYA SEPERTI GAMBAR) ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -146,17 +146,11 @@ async def show_leaderboard(ctx):
     # Urutkan berdasarkan level (tertinggi), lalu XP (tertinggi)
     sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
 
-    embed = discord.Embed(
-        title="🏆 LEADERBOARD TOP 3 SERVER",
-        description="Daftar 3 member teratas dengan pencapaian tertinggi:",
-        color=0xF1C40F
-    )
+    leaderboard_lines = []
+    medals = ["#1", "#2", "#3"]
 
-    medals = ["🥇 Peringkat 1", "🥈 Peringkat 2", "🥉 Peringkat 3"]
-    top_user_avatar = None
-
-    # Ambil hanya Top 3 dan buat field terpisah untuk masing-masing user
-    for i, (user_id, data) in enumerate(sorted_users[:3]):
+    # Ambil hingga Top 10 member teratas
+    for i, (user_id, data) in enumerate(sorted_users[:10]):
         member = ctx.guild.get_member(user_id)
         if not member:
             try:
@@ -164,32 +158,24 @@ async def show_leaderboard(ctx):
             except Exception:
                 member = None
 
-        name = member.display_name if hasattr(member, 'display_name') else (member.name if member else f"User {user_id}")
+        name = member.name if hasattr(member, 'name') else f"User {user_id}"
         
-        # Ambil URL avatar user
-        avatar_url = member.avatar.url if member and member.avatar else (member.default_avatar.url if member else None)
-        
-        # Simpan avatar peringkat 1 untuk thumbnail besar di pojok kanan
-        if i == 0 and avatar_url:
-            top_user_avatar = avatar_url
+        # Simbol peringkat
+        rank_num = f"#{i+1}"
+        if i == 0:
+            rank_num = "🥇 #1"
+        elif i == 1:
+            rank_num = "🥈 #2"
+        elif i == 2:
+            rank_num = "🥉 #3"
 
-        # Format isi field untuk setiap user
-        value_text = (
-            f"👤 **Nama:** {name}\n"
-            f"✨ **Level:** `{data['level']}` | ⚡ **XP:** `{data['xp']}`\n"
-        )
-        if avatar_url:
-            value_text += f"🖼️ **[Buka Foto Profil (Avatar)]({avatar_url})**"
+        # Format baris teks per user mirip seperti gambar referensi
+        line = f"**{rank_num}** • `@{name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
+        leaderboard_lines.append(line)
 
-        embed.add_field(name=medals[i], value=value_text, inline=False)
-
-    if top_user_avatar:
-        embed.set_thumbnail(url=top_user_avatar)
-
-    footer_icon = ctx.author.avatar.url if ctx.author.avatar else None
-    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store", icon_url=footer_icon)
-    
-    await ctx.send(embed=embed)
+    # Gabungkan semua baris menjadi satu teks pesan
+    output_text = "🏆 **LEADERBOARD TOP SERVER**\n\n" + "\n".join(leaderboard_lines)
+    await ctx.send(output_text)
 
 # --- LEVEL & XP COMMAND ---
 @bot.command(name="rank", aliases=["lvl", "level"])
