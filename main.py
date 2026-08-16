@@ -4,6 +4,7 @@ import os
 import random
 import datetime
 import asyncio
+import aiohttp
 
 # ==================== CONFIG BOT ====================
 intents = discord.Intents.default()
@@ -15,6 +16,7 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 # Channel ID Target
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
+TESTIMONI_CHANNEL_ID = 000000000000000000  # <--- Ganti dengan ID Channel Testimoni Anda
 
 # Sistem Penyimpanan Level & XP di Memori
 user_data = {}
@@ -29,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Embed, .quote, & Fitur Lengkap!")
+    print("🚀 Bot siap dengan Sistem Testimoni Otomatis & Fitur Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -90,6 +92,63 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# ==================== SISTEM INTERAKTIF RATING & TESTIMONI ====================
+class RatingView(discord.ui.View):
+    def __init__(self, ticket_opener: discord.Member):
+        super().__init__(timeout=60)
+        self.ticket_opener = ticket_opener
+
+    async def send_testimoni(self, interaction: discord.Interaction, rating_text: str, color_code: int):
+        guild = interaction.guild
+        testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
+
+        # Buat Embed Testimoni untuk dikirim ke channel khusus testi
+        testi_embed = discord.Embed(
+            title="⭐ TESTIMONI & RATING PELANGGAN",
+            description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
+            color=color_code
+        )
+        testi_embed.add_field(name="👤 Pembeli / Klien", value=self.ticket_opener.mention, inline=True)
+        testi_embed.add_field(name="🏆 Penilaian", value=rating_text, inline=True)
+        testi_embed.add_field(name="🛠️ Ditutup Oleh", value=interaction.user.mention, inline=False)
+        testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+        # Kirim ke channel testimoni jika ID channel sudah diatur
+        if testi_channel:
+            try:
+                await testi_channel.send(embed=testi_embed)
+            except Exception:
+                pass
+
+        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim. Channel akan ditutup dalam 5 detik...", ephemeral=True)
+        await self.disable_all_and_close(interaction.channel)
+
+    @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
+    async def rate_5(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_testimoni(interaction, "⭐⭐⭐⭐⭐ (Sangat Puas)", 0x2ECC71)
+
+    @discord.ui.button(label="⭐ 3 (Cukup)", style=discord.ButtonStyle.blurple)
+    async def rate_3(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_testimoni(interaction, "⭐⭐⭐ (Cukup)", 0x3498DB)
+
+    @discord.ui.button(label="⭐ 1 (Kurang)", style=discord.ButtonStyle.red)
+    async def rate_1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_testimoni(interaction, "⭐ (Kurang)", 0xE74C3C)
+
+    async def disable_all_and_close(self, channel):
+        for child in self.children:
+            child.disabled = True
+        try:
+            await channel.edit(view=self)
+        except Exception:
+            pass
+        
+        await asyncio.sleep(5)
+        try:
+            await channel.delete(reason="Tiket selesai dan rating telah diberikan.")
+        except Exception:
+            pass
+
 # ==================== KUMPULAN PERINTAH ====================
 
 @bot.command(name="ping")
@@ -105,36 +164,48 @@ async def show_info(ctx):
         color=0x3498DB,
     )
     embed.add_field(
-        name="🛡️ Moderasi & Admin",
+        name="🛡️ Moderasi, Admin & Tiket",
         value="`.clear` / `.cls` — Menghapus pesan\n"
+              "`.closeticket` / `.done` — Menutup tiket & memunculkan tombol rating\n"
               "`.role @user [nama role]` — Memberikan/mencabut role\n"
-              "`.ban @user [alasan]` — Memblokir member\n"
-              "`.timeout` / `.mute` — Membisukan member\n"
-              "`.untimeout` / `.unmute` — Batalkan timeout/mute",
+              "`.ban @user [alasan]` — Memblokir member",
         inline=False
     )
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
               "`.top` / `.lb` — Cek Top 10 Leaderboard dalam Kotak Embed\n"
-              "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
-              "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
+              "`.addxp` / `.axp` — Menambah XP user (Admin)",
         inline=False
     )
     embed.add_field(
-        name="🛠️ Utility & Informasi",
-        value="`.server` — Info lengkap server\n"
-              "`.whois` / `.ui` — Detail profil & role member\n"
-              "`.avatar` / `.pp` — Cek foto profil & role user",
-        inline=False
-    )
-    embed.add_field(
-        name="🎮 Fun, Games & Hiburan",
-        value="`.roll` — Dadu | `.coinflip` — Koin | `.rps` — Suit | `.rate` — Nilai | `.quote` — Katabijak",
+        name="🛠️ Utility & Hiburan",
+        value="`.server` | `.whois` | `.avatar` | `.roll` | `.coinflip` | `.rps` | `.quote`",
         inline=False
     )
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
+
+# --- PERINTAH MENUTUP TIKET & RATING (.done / .closeticket) ---
+@bot.command(name="closeticket", aliases=["done", "selesai"])
+@commands.has_permissions(manage_channels=True)
+async def close_ticket(ctx, member: discord.Member = None):
+    # Jika tidak mengetik mention member, bot coba tebak pembuat tiket dari nama channel atau histori
+    target_member = member or ctx.author 
+
+    embed = discord.Embed(
+        title="🔒 TIKET SELESAI / DITUTUP",
+        description=f"Terima kasih {target_member.mention} telah memesan di **TONGSOP Store**. \n\nSilakan berikan penilaian/rating pelayanan kami dengan menekan tombol di bawah ini (Opsional):",
+        color=0xF1C40F
+    )
+    embed.set_footer(text="Pilih tombol rating di bawah untuk mengirim testimoni otomatis ke channel testi.")
+    
+    await ctx.send(embed=embed, view=RatingView(target_member))
+
+@close_ticket.error
+async def closeticket_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ Kamu tidak memiliki izin untuk menutup tiket!")
 
 # --- LEADERBOARD TOP 10 DALAM SATU KOTAK EMBED RAPI & BISA DIKLIK ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
@@ -143,10 +214,8 @@ async def show_leaderboard(ctx):
         await ctx.send("❌ Belum ada data level di server ini. Yuk mulai aktif chat!")
         return
 
-    # Urutkan berdasarkan level (tertinggi), lalu XP (tertinggi)
     sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
 
-    # Membuat kesatuan kotak embed dengan garis kuning di pinggir (0xF1C40F)
     embed = discord.Embed(
         title="🏆 LEADERBOARD TOP SERVER",
         description="Daftar peringkat member teraktif di server:",
@@ -155,7 +224,6 @@ async def show_leaderboard(ctx):
 
     leaderboard_lines = []
 
-    # Ambil hingga Top 10 member teratas
     for i, (user_id, data) in enumerate(sorted_users[:10]):
         member = ctx.guild.get_member(user_id)
         if not member:
@@ -164,7 +232,6 @@ async def show_leaderboard(ctx):
             except Exception:
                 member = None
 
-        # Simbol medali peringkat
         if i == 0:
             rank_num = "🥇 #1"
         elif i == 1:
@@ -174,21 +241,17 @@ async def show_leaderboard(ctx):
         else:
             rank_num = f"#{i+1}"
 
-        # Menggunakan member.mention agar nama bisa diklik untuk memunculkan profil
         user_mention = member.mention if member else f"<@{user_id}>"
 
-        # Format teks baris member di dalam embed
         line = f"**{rank_num}** • {user_mention} • LVL: `+{data['level']}` XP: `+{data['xp']}`"
         leaderboard_lines.append(line)
 
-    # Masukkan daftar ke dalam 1 field embed agar menyatu dalam kotak
     embed.add_field(
         name="📊 Peringkat Teratas",
         value="\n".join(leaderboard_lines),
         inline=False
     )
 
-    # Footer peminta perintah
     footer_text = f"Diminta oleh {ctx.author.display_name} • TONGSOP Store"
     footer_icon = ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url
     embed.set_footer(text=footer_text, icon_url=footer_icon)
@@ -405,15 +468,27 @@ async def rate_something(ctx, *, item: str):
     score = random.randint(0, 100)
     await ctx.send(f"⭐ Saya menilai **{item}** sebesar **{score}/100**!")
 
+# --- QUOTES ACAK ONLINE DARI INTERNET ---
 @bot.command(name="quote")
 async def random_quote(ctx):
-    quotes = [
-        "“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”",
-        "“Jangan menunggu waktu yang tepat, karena waktu yang tepat adalah sekarang.”",
-        "“Tetap semangat, hasil tidak akan mengkhianati usaha!”",
-        "“Kegagalan adalah sukses yang tertunda, teruslah mencoba.”"
-    ]
-    await ctx.send(f"💬 *{random.choice(quotes)}*")
+    url = "https://api.quotable.io/random"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    content = data.get("content")
+                    author = data.get("author")
+                    await ctx.send(f"💬 *“{content}”* \n— **{author}**")
+                else:
+                    await ctx.send("💬 *“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”*")
+    except Exception:
+        fallback_quotes = [
+            "“Jangan menunggu waktu yang tepat, karena waktu yang tepat adalah sekarang.”",
+            "“Tetap semangat, hasil tidak akan mengkhianati usaha!”",
+            "“Kegagalan adalah sukses yang tertunda, teruslah mencoba.”"
+        ]
+        await ctx.send(f"💬 *{random.choice(fallback_quotes)}*")
 
 # ==================== RUN BOT ====================
 TOKEN = os.getenv("BOT_TOKEN")
