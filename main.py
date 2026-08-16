@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 import random
 import datetime
+import sqlite3
 
 # ==================== CONFIG BOT ====================
 intents = discord.Intents.default()
@@ -11,22 +12,89 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target
+# Channel ID Target (Dari skrip awal Anda)
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
+
+xp_cooldowns = {}
+
+# ==================== DATABASE SETUP (LEVEL & XP) ====================
+def init_db():
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 0
+            )
+        """)
+        conn.commit()
+
+init_db()
+
+def get_user_data(user_id):
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
+        data = cursor.fetchone()
+        if not data:
+            cursor.execute("INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)", (user_id, 0, 0))
+            conn.commit()
+            data = (0, 0)
+        return data
+
+def update_user_data(user_id, xp, level):
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (xp, level, user_id))
+        conn.commit()
+
+def get_xp_needed(level):
+    return (level + 1) * 100
 
 # ==================== EVENTS BOT ====================
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Siap melayani server dengan puluhan perintah baru!")
+    print("🚀 Siap melayani server dengan fitur Role, Leveling, dan Panel Tiket!")
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # Auto Response Tiket di Channel General
+    # 1. Sistem Leveling & XP Otomatis (Cooldown 60 Detik per User)
+    now = datetime.datetime.now().timestamp()
+    user_id = message.author.id
+
+    if user_id not in xp_cooldowns or (now - xp_cooldowns[user_id]) > 60:
+        xp_cooldowns[user_id] = now
+        current_xp, current_level = get_user_data(user_id)
+
+        gained_xp = random.randint(15, 25)
+        new_xp = current_xp + gained_xp
+        xp_needed = get_xp_needed(current_level)
+
+        if new_xp >= xp_needed:
+            current_level += 1
+            new_xp = new_xp - xp_needed
+            update_user_data(user_id, new_xp, current_level)
+
+            embed = discord.Embed(
+                title="🎉 LEVEL UP EXCELLENT!",
+                description=f"Hebat {message.author.mention}! Keaktifanmu membawamu naik ke **Level {current_level}** 🚀",
+                color=0x2ECC71
+            )
+            embed.set_thumbnail(url=message.author.avatar.url if message.author.avatar else message.author.default_avatar.url)
+            try:
+                await message.channel.send(embed=embed)
+            except Exception:
+                pass
+        else:
+            update_user_data(user_id, new_xp, current_level)
+
+    # 2. Auto Response Tiket di Channel General (Fitur dari skrip awal Anda)
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
@@ -60,7 +128,7 @@ async def check_ping(ctx):
     latency_ms = round(bot.latency * 1000)
     await ctx.send(f"🏓 Pong! Latency: `{latency_ms}ms`")
 
-@bot.command(name="info", aliases=["help"])
+@bot.command(name="info", aliases=["help", "h"])
 async def show_info(ctx):
     embed = discord.Embed(
         title="📌 PUSAT BANTUAN & DAFTAR PERINTAH",
@@ -68,39 +136,117 @@ async def show_info(ctx):
         color=0x3498DB,
     )
     embed.add_field(
-        name="🛠️ Utility & Informasi",
+        name="🛡️ Moderasi & Role",
+        value="`.role @user [nama role]` — Memberikan/melepas role member\n"
+              "`.clear [jumlah]` (alias `.purge`/`.cls`) — Menghapus pesan chat",
+        inline=False
+    )
+    embed.add_field(
+        name="📊 Leveling & XP",
+        value="`.rank` (alias `.lvl`/`.level`) — Cek level dan XP kamu",
+        inline=False
+    )
+    embed.add_field(
+        name="🛠️ Utility & Informasi (Bisa Disingkat)",
         value="`.ping` — Cek kecepatan respon bot\n"
               "`.say [pesan]` — Menyuruh bot mengulang pesan\n"
-              "`.server` — Menampilkan info lengkap server\n"
-              "`.whois [@user]` — Melihat detail profil member\n"
-              "`.avatar [@user]` — Melihat foto profil member",
+              "`.server` (alias `.serv`/`.s`) — Info lengkap server\n"
+              "`.whois` (alias `.who`/`.u`) — Detail profil member\n"
+              "`.avatar` (alias `.pp`/`.av`) — Foto profil member",
         inline=False
     )
     embed.add_field(
-        name="🎮 Fun, Games & Hiburan",
-        value="`.roll` — Mengacak angka 1 sampai 100\n"
-              "`.coinflip` — Lempar koin (Kepala/Buntut)\n"
-              "`.rps [batu/kertas/gunting]` — Main Suit Jepang\n"
-              "`.rate [sesuatu]` — Menilai sesuatu 0-100\n"
-              "`.quote` — Menampilkan kata-kata bijak acak",
-        inline=False
-    )
-    embed.add_field(
-        name="🧮 Alat Praktis",
-        value="`.calc [angka1] [+|-|*|/] [angka2]` — Kalkulator cepat\n"
-              "`.choose [pilihan1], [pilihan2]` — Membantu membuat keputusan",
+        name="🎮 Fun, Games & Alat Praktis",
+        value="`.roll` — Acak angka 1-100\n"
+              "`.coinflip` (alias `.koin`) — Lempar koin\n"
+              "`.rps [batu/kertas/gunting]` — Main suit\n"
+              "`.rate [sesuatu]` — Nilai sesuatu 0-100\n"
+              "`.calc [angka1] [+|-|*|/] [angka2]` — Kalkulator\n"
+              "`.choose [pilihan1], [pilihan2]` — Pilihkan opsi",
         inline=False
     )
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- UTILITY COMMANDS ---
+# --- MODERASI: MEMBERI / MENGHAPUS ROLE ---
+@bot.command(name="role", aliases=["give role", "addrole"])
+@commands.has_permissions(manage_roles=True)
+async def manage_role(ctx, member: discord.Member, *, rolename: str):
+    guild = ctx.guild
+    role = discord.utils.get(guild.roles, name=rolename)
+    
+    if not role:
+        try:
+            role = await guild.create_role(name=rolename, reason=f"Dibuat otomatis oleh perintah .role dari {ctx.author}")
+            await ctx.send(⚠️ Role `{rolename}` tidak ditemukan di server, tetapi berhasil dibuat secara otomatis!")
+        except Exception as e:
+            await ctx.send(f"❌ Gagal membuat role baru: {e}")
+            return
+
+    if role in member.roles:
+        await member.remove_roles(role)
+        await ctx.send(f"✅ Berhasil **mencabut** role `{role.name}` dari {member.mention}.")
+    else:
+        try:
+            await member.add_roles(role)
+            await ctx.send(f"✅ Berhasil **memberikan** role `{role.name}` kepada {member.mention}!")
+        except Exception:
+            await ctx.send("❌ Bot gagal memberikan role tersebut. Pastikan posisi Role Bot di pengaturan server berada di atas role yang ingin diberikan!")
+
+@manage_role.error
+async def role_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ Maaf, kamu tidak memiliki izin *Manage Roles* untuk menggunakan perintah ini!")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("⚠️ Format salah! Contoh penggunaan: `.role @NamaMember VIP`")
+
+# --- LEVEL & XP COMMANDS ---
+@bot.command(name="rank", aliases=["lvl", "level"])
+async def check_rank(ctx, member: discord.Member = None):
+    target = member or ctx.author
+    xp, level = get_user_data(target.id)
+    xp_needed = get_xp_needed(level)
+
+    percent = int((xp / xp_needed) * 100) if xp_needed > 0 else 0
+    filled = int(10 * (xp / xp_needed)) if xp_needed > 0 else 0
+    bar = "🟩" * filled + "⬛" * (10 - filled)
+
+    embed = discord.Embed(title=f"📊 Status Kartu Profil — {target.display_name}", color=0x3498DB)
+    embed.set_thumbnail(url=target.avatar.url if target.avatar else target.default_avatar.url)
+    embed.add_field(name="✨ Level", value=f"**{level}**", inline=True)
+    embed.add_field(name="⚡ Total XP", value=f"**{xp} / {xp_needed}**", inline=True)
+    embed.add_field(name="📈 Progress", value=f"{bar} **{percent}%**", inline=False)
+    await ctx.send(embed=embed)
+
+# --- MODERASI PENGHAPUS PESAN ---
+@bot.command(name="clear", aliases=["purge", "cls"])
+@commands.has_permissions(manage_messages=True)
+async def clear_messages(ctx, amount: int = 5):
+    if amount < 1:
+        await ctx.send("⚠️ Masukkan jumlah pesan yang valid untuk dihapus (minimal 1).")
+        return
+    deleted = await ctx.channel.purge(limit=amount + 1)
+    msg = await ctx.send(f"🧹 Berhasil menghapus **{len(deleted) - 1}** pesan.")
+    
+    import asyncio
+    await asyncio.sleep(3)
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+
+@clear_messages.error
+async def clear_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ Maaf, kamu tidak memiliki izin *Manage Messages* untuk menggunakan perintah ini!")
+
+# --- UTILITY COMMANDS (DENGAN ALIASES/SINGKATAN) ---
 @bot.command(name="say")
 async def say_message(ctx, *, message: str):
     await ctx.message.delete()
     await ctx.send(message)
 
-@bot.command(name="server", aliases=["serverinfo"])
+@bot.command(name="server", aliases=["serverinfo", "serv", "s"])
 async def server_info(ctx):
     guild = ctx.guild
     embed = discord.Embed(title=f"📊 Informasi Server: {guild.name}", color=0x2ECC71)
@@ -112,7 +258,7 @@ async def server_info(ctx):
     embed.set_footer(text=f"Server ID: {guild.id}")
     await ctx.send(embed=embed)
 
-@bot.command(name="whois", aliases=["userinfo"])
+@bot.command(name="whois", aliases=["who", "u", "userinfo"])
 async def whois_member(ctx, member: discord.Member = None):
     member = member or ctx.author
     embed = discord.Embed(title=f"👤 User Info — {member.name}", color=0x3498DB)
@@ -122,7 +268,7 @@ async def whois_member(ctx, member: discord.Member = None):
     embed.add_field(name="Bergabung Sejak", value=member.joined_at.strftime("%d %b %Y") if member.joined_at else "-", inline=False)
     await ctx.send(embed=embed)
 
-@bot.command(name="avatar", aliases=["pp"])
+@bot.command(name="avatar", aliases=["pp", "av"])
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
     embed = discord.Embed(title=f"🖼️ Foto Profil — {target.name}", color=0x9B59B6)
@@ -167,17 +313,6 @@ async def rate_something(ctx, *, item: str):
     score = random.randint(0, 100)
     await ctx.send(f"⭐ Saya menilai **{item}** sebesar **{score}/100**!")
 
-@bot.command(name="quote")
-async def random_quote(ctx):
-    quotes = [
-        "“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”",
-        "“Jangan menunggu waktu yang tepat, karena waktu yang tepat adalah sekarang.”",
-        "“Tetap semangat, hasil tidak akan mengkhianati usaha!”",
-        "“Kegagalan adalah sukses yang tertunda, teruslah mencoba.”"
-    ]
-    await ctx.send(f"💬 *{random.choice(quotes)}*")
-
-# --- UTILITY TAMBAHAN ---
 @bot.command(name="calc")
 async def calculator(ctx, num1: float, op: str, num2: float):
     try:
