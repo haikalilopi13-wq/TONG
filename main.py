@@ -249,8 +249,8 @@ class BuyModal(discord.ui.Modal, title="BUY"):
 # ==================== FORMULIR REDFINGER (SPLIT MODAL) ====================
 class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
     paket = discord.ui.TextInput(
-        label="Mau Redfinger",
-        placeholder="Contoh: Max 8 Split",
+        label="Split Redfinger",
+        placeholder="SPLIT TERGANTUNG DIVCE",
         style=discord.TextStyle.short,
         required=True
     )
