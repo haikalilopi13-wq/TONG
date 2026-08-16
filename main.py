@@ -13,7 +13,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target (Ganti ID di bawah jika ingin diarahkan ke channel khusus)
+# Channel ID Target
 GENERAL_CHANNEL_ID = 1538646829938516048  
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
 TESTIMONI_CHANNEL_ID = 1517625158263898284  
@@ -64,25 +64,6 @@ async def on_message(message):
                 await message.channel.send(embed=embed)
             except Exception:
                 pass
-
-    # 2. Auto Response Panel Order Ganda di Channel Khusus
-    if message.channel.id == GENERAL_CHANNEL_ID:
-        try:
-            async for old_msg in message.channel.history(limit=15):
-                if old_msg.author.id == bot.user.id and len(old_msg.embeds) > 0:
-                    await old_msg.delete()
-        except Exception:
-            pass
-
-        embed = discord.Embed(
-            title="🛒 TONGSOP OFFICIAL TICKET SYSTEM",
-            description="Selamat datang! Ingin melakukan pemesanan produk atau set up jasa split Redfinger? Silakan pilih tombol di bawah ini.",
-            color=0x3498DB,
-        )
-        embed.set_footer(text="TONGSOP Store • Secure & Trusted Service")
-
-        await message.channel.send(content=f"{message.author.mention}", embed=embed, view=BuyButtonView())
-        return
 
     await bot.process_commands(message)
 
@@ -149,8 +130,9 @@ class TicketControlView(discord.ui.View):
 
     @discord.ui.button(label="🔒 Close Ticket & Rating", style=discord.ButtonStyle.danger, custom_id="close_ticket_button")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.manage_channels:
-            await interaction.response.send_message("❌ Hanya staf/moderator yang dapat menutup tiket ini!", ephemeral=True)
+        # Diizinkan jika yang klik adalah pembuat tiket ATAU staf/admin
+        if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya pembuat tiket atau staf yang dapat menutup tiket ini!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -381,7 +363,13 @@ async def manual_panel_order(ctx):
         color=0x3498DB
     )
     embed.set_footer(text="TONGSOP Store • Secure Order System")
-    await ctx.send(embed=embed, view=BuyButtonView())
+    
+    target_channel = bot.get_channel(GENERAL_CHANNEL_ID)
+    if target_channel:
+        await target_channel.send(embed=embed, view=BuyButtonView())
+        await ctx.send(f"✅ Panel order berhasil dikirim ke channel <#{GENERAL_CHANNEL_ID}>!")
+    else:
+        await ctx.send(embed=embed, view=BuyButtonView())
 
 @manual_panel_order.error
 async def panel_order_error(ctx, error):
