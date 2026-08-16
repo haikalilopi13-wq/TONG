@@ -5,7 +5,6 @@ import random
 import re
 import sqlite3
 import discord
-from discord import app_commands
 from discord.ext import commands
 
 # ==================== CONFIG BOT ====================
@@ -13,14 +12,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
+# Menggunakan prefix titik (.) sesuai permintaan agar tidak nabrak dengan bot lain
+bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # Konfigurasi Channel ID (Sesuaikan dengan ID server Anda)
 GENERAL_CHANNEL_ID = 1518084729122062488
-TICKET_CATEGORY_ID = (
-    1517625110536786050  # ID Kategori untuk membuat private channel tiket
-)
-LOG_CHANNEL_ID = 1518084729122062489  # ID Channel untuk log moderasi (opsional)
+TICKET_CATEGORY_ID = 1517625110536786050  # ID Kategori untuk membuat private channel tiket
 
 xp_cooldowns = {}
 
@@ -82,7 +79,24 @@ def get_xp_needed(level):
     return (level + 1) * 100
 
 
-# ==================== INTERACTIVE VIEWS (UI COMPONENTS) ====================
+def parse_duration(time_str: str) -> datetime.timedelta:
+    match = re.match(r"^(\d+)([smhd])?$", time_str.lower())
+    if not match:
+        return None
+    val, unit = match.groups()
+    val = int(val)
+    if unit == "s":
+        return datetime.timedelta(seconds=val)
+    elif unit == "m" or unit is None:
+        return datetime.timedelta(minutes=val)
+    elif unit == "h":
+        return datetime.timedelta(hours=val)
+    elif unit == "d":
+        return datetime.timedelta(days=val)
+    return None
+
+
+# ==================== INTERACTIVE VIEWS (UI BUTTONS) ====================
 
 
 class TicketControlView(discord.ui.View):
@@ -144,9 +158,9 @@ class TicketSystemView(discord.ui.View):
         guild = interaction.guild
         category = guild.get_channel(TICKET_CATEGORY_ID)
 
-        # Cek apakah user sudah punya tiket terbuka di kategori yang sama
         existing_channel = discord.utils.get(
-            guild.text_channels, name=f"ticket-{ticket_type}-{interaction.user.name.lower()}"
+            guild.text_channels,
+            name=f"ticket-{ticket_type}-{interaction.user.name.lower()}",
         )
         if existing_channel:
             await interaction.response.send_message(
@@ -155,7 +169,6 @@ class TicketSystemView(discord.ui.View):
             )
             return
 
-        # Atur permission agar hanya user ybs dan admin yang bisa melihat channel privat ini
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             interaction.user: discord.PermissionOverwrite(
@@ -201,14 +214,8 @@ class TicketSystemView(discord.ui.View):
 
 @bot.event
 async def on_ready():
-    # Sinkronisasi Slash Commands secara otomatis ke Discord
-    try:
-        synced = await bot.tree.sync()
-        print(f"✨ Berhasil menyinkronkan {len(synced)} Slash Commands (/urs).")
-    except Exception as e:
-        print(f"Gagal sinkronisasi command: {e}")
-
-    print(f"🚀 Tongsop Assistant (Advanced Edition) aktif sebagai {bot.user}!")
+    print(f"✨ Tongsop Assistant Berhasil Terhubung as {bot.user}!")
+    print("🚀 Status: Siap melayani server menggunakan prefix titik (.)")
 
 
 @bot.event
@@ -216,7 +223,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Sistem Leveling & XP Otomatis (Cooldown 60 Detik)
+    # 1. Sistem Leveling & XP Otomatis (Cooldown 60 Detik)
     now = datetime.datetime.now().timestamp()
     user_id = message.author.id
 
@@ -250,7 +257,7 @@ async def on_message(message):
         else:
             update_user_data(user_id, new_xp, current_level)
 
-    # Auto Response Panel Tiket interaktif dengan tombol di General Channel
+    # 2. Panel Tiket Interaktif Otomatis di Channel General
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=10):
@@ -279,18 +286,17 @@ async def on_message(message):
         )
         return
 
-    await bot.process_commands(message)
+    # 3. Eksekusi Command Berbasis Prefix (.)
+    if message.content.startswith("."):
+        await bot.process_commands(message)
 
 
-# ==================== SLASH COMMANDS (MODERN /) ====================
+# ==================== COMMANDS LEVELING & LEADERBOARD ====================
 
 
-@bot.tree.command(
-    name="rank", description="Mengecek kartu profil level dan progress XP Anda"
-)
-@app_commands.describe(member="Member yang ingin dicek (opsional)")
-async def slash_rank(interaction: discord.Interaction, member: discord.Member = None):
-    target = member or interaction.user
+@bot.command(name="rank", aliases=["level"])
+async def check_rank(ctx, member: discord.Member = None):
+    target = member or ctx.author
     xp, level = get_user_data(target.id)
     xp_needed = get_xp_needed(level)
 
@@ -308,32 +314,39 @@ async def slash_rank(interaction: discord.Interaction, member: discord.Member = 
     embed.add_field(name="⚡ Total XP", value=f"**{xp} / {xp_needed}**", inline=True)
     embed.add_field(name="📈 Progress Level", value=f"{bar} **{percent}%**", inline=False)
     embed.set_footer(
-        text=f"Diminta oleh {interaction.user.name}",
-        icon_url=interaction.user.avatar.url if interaction.user.avatar else None,
+        text=f"Diminta oleh {ctx.author.name}",
+        icon_url=ctx.author.avatar.url if ctx.author.avatar else None,
     )
 
-    await interaction.response.send_message(embed=embed)
+    await ctx.send(embed=embed)
 
 
-@bot.tree.command(
-    name="leaderboard", description="Menampilkan top 5 member paling aktif"
-)
-async def slash_leaderboard(interaction: discord.Interaction):
+@bot.command(name="leaderboard", aliases=["lb", "top"])
+async def show_leaderboard(ctx):
     top_users = get_top_users()
     if not top_users:
-        await interaction.response.send_message(
-            "❌ Belum ada data peringkat member.", ephemeral=True
-        )
+        await ctx.send("❌ Belum ada data peringkat member yang tercatat.")
         return
 
     embed = discord.Embed(color=0x2B2D31)
-    embed.set_author(name=f"{interaction.guild.name} Server Leaderboard")
+    if ctx.guild.icon:
+        embed.set_author(
+            name=f"{ctx.guild.name} server Leaderboard", icon_url=ctx.guild.icon.url
+        )
+    else:
+        embed.set_author(name=f"{ctx.guild.name} server Leaderboard")
 
     description_text = ""
     medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
 
     for i, (u_id, lvl, xp) in enumerate(top_users):
-        user = bot.get_user(u_id) or await bot.fetch_user(u_id)
+        user = bot.get_user(u_id)
+        if not user:
+            try:
+                user = await bot.fetch_user(u_id)
+            except Exception:
+                user = None
+
         name = user.name if user else f"User_{u_id}"
         rank_icon = medals[i] if i < len(medals) else "🔹"
         xp_needed = get_xp_needed(lvl)
@@ -343,19 +356,36 @@ async def slash_leaderboard(interaction: discord.Interaction):
         description_text += f"{rank_icon} **{name}**\n└ `LVL {lvl}` • `{xp}/{xp_needed} XP`\n`{bar}`\n\n"
 
     embed.description = description_text
-    embed.set_footer(text="Sistem Peringkat Resmi Tongsop")
-    await interaction.response.send_message(embed=embed)
+    embed.set_footer(text="Overall XP • Sistem Peringkat Resmi Tongsop")
+    await ctx.send(embed=embed)
 
 
-@bot.tree.command(name="ping", description="Menguji kecepatan respon bot")
-async def slash_ping(interaction: discord.Interaction):
+@bot.command(name="ping")
+async def check_ping(ctx):
     latency_ms = round(bot.latency * 1000)
     embed = discord.Embed(
-        title="🏓 PONG!",
-        description=f"Latensi server bot saat ini: `{latency_ms}ms`",
+        title="🏓 PONG - SYSTEM LATENCY",
+        description=f"Kecepatan respon server bot saat ini: `{latency_ms}ms`",
         color=0x2ECC71,
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await ctx.send(embed=embed)
+
+
+# ==================== ERROR HANDLING ====================
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send(
+            "❌ Maaf, kamu tidak memiliki hak akses (permissions) untuk menjalankan perintah ini!"
+        )
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(
+            "⚠️ Format atau argumen perintah kurang lengkap! Ketik `.info` untuk melihat panduan."
+        )
+    elif isinstance(error, commands.CommandNotFound):
+        return
+    else:
+        raise error
 
 
 # ==================== RUN BOT ====================
