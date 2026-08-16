@@ -15,7 +15,7 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 # Channel ID Target & Konfigurasi
 GENERAL_CHANNEL_ID = 1518084729122062488
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  # Kategori tempat tiket dibuat
-TESTIMONI_CHANNEL_ID = 1517625158263898284        # Channel Testimoni Pembelian Umum
+TESTIMONI_CHANNEL_ID = 1517625158263898284         # Channel Testimoni Pembelian Umum
 REDFINGER_TESTI_CHANNEL_ID = 1538673467442856059 # Channel Testimoni Khusus Redfinger
 STAFF_ROLE_ID = 1517580561361928463              # ID Role Staff / Admin
 
@@ -65,30 +65,6 @@ async def on_message(message):
                 await message.channel.send(embed=embed)
             except Exception:
                 pass
-
-    # 2. Auto Response / Panel Otomatis di Channel General
-    if message.channel.id == GENERAL_CHANNEL_ID:
-        try:
-            async for old_msg in message.channel.history(limit=15):
-                if old_msg.author.id == bot.user.id and len(old_msg.embeds) > 0:
-                    await old_msg.delete()
-        except Exception:
-            pass
-
-        embed = discord.Embed(
-            title="🛒 PRENSTORE OFFICIAL TICKET SYSTEM",
-            description="Selamat datang! Butuh bantuan cepat atau ingin melakukan pemesanan produk? Silakan akses panel tiket di bawah ini.",
-            color=0x3498DB,
-        )
-        embed.add_field(
-            name="📦 Layanan Order Produk & Redfinger",
-            value="Gunakan tombol interaktif di bawah untuk membuat tiket.",
-            inline=False,
-        )
-        embed.set_footer(text="TONGSOP Store • Secure & Trusted Service")
-
-        await message.channel.send(content=f"{message.author.mention}", embed=embed, view=BuyButtonView())
-        return
 
     await bot.process_commands(message)
 
