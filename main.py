@@ -13,10 +13,11 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target
+# Channel & Role ID Target (Ganti ID Role Staf di bawah ini)
 GENERAL_CHANNEL_ID = 1538646829938516048  
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
 TESTIMONI_CHANNEL_ID = 1517625158263898284  
+STAFF_ROLE_ID = 0000000000000000000  # <--- Ganti dengan ID Role Staf / Owner Anda
 
 # Sistem Penyimpanan Level & XP di Memori
 user_data = {}
@@ -31,7 +32,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Claim Ticket & Ulasan Kustom!")
+    print("🚀 Bot siap dengan Sistem Claim, Close, & Notifikasi Tag Staf!")
 
 @bot.event
 async def on_message(message):
@@ -99,11 +100,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
             color=color_code
         )
-        testi_embed.add_field(
-            name="👤 Pembeli / Klien", 
-            value=f"{buyer.mention} (`@{buyer.name}`)", 
-            inline=True
-        )
+        testi_embed.add_field(name="👤 Pembeli / Klien", value=f"{buyer.mention} (`@{buyer.name}`)", inline=True)
         testi_embed.add_field(name="🏆 Penilaian", value=self.rating_bintang, inline=True)
         testi_embed.add_field(name="💬 Ulasan Pembeli", value=f"*{self.ulasan_teks.value}*", inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
@@ -143,7 +140,6 @@ class ClaimTicketView(discord.ui.View):
 
     @discord.ui.button(label="🤝 Claim Ticket", style=discord.ButtonStyle.success, custom_id="claim_ticket_btn")
     async def claim_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Cek apakah yang klik punya izin manage_channels / staf
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ Hanya Staf/Admin yang dapat mengklaim tiket ini!", ephemeral=True)
             return
@@ -157,10 +153,8 @@ class ClaimTicketView(discord.ui.View):
         button.label = f"Claimed by {interaction.user.name}"
         button.style = discord.ButtonStyle.secondary
 
-        # Berikan akses penuh ke staf yang mengklaim
         await interaction.channel.set_permissions(interaction.user, view_channel=True, send_messages=True)
 
-        # Buat embed data pesanan yang sebelumnya disembunyikan
         ticket_embed = discord.Embed(
             title="🎟️ TIKET DIKLAIM & DIBUKA",
             description=f"Tiket ini telah diambil oleh staf {interaction.user.mention}.\n\nPembuat Tiket: {self.ticket_opener.mention} (`@{self.ticket_opener.name}`)",
@@ -170,9 +164,8 @@ class ClaimTicketView(discord.ui.View):
         for key, value in self.ticket_data.items():
             ticket_embed.add_field(name=key, value=value, inline=False)
             
-        ticket_embed.set_footer(text="Gunakan tombol di bawah untuk menutup tiket.")
+        ticket_embed.set_footer(text="Gunakan tombol di bawah untuk menutup tiket (Khusus Staf).")
 
-        # Update pesan dengan menampilkan data lengkap & tombol kontrol biasa (Close & Rating)
         await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener))
         await interaction.response.send_message(f"✅ Anda berhasil mengklaim tiket ini!", ephemeral=True)
 
@@ -183,14 +176,14 @@ class TicketControlView(discord.ui.View):
 
     @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_only")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
-            await interaction.response.send_message("❌ Hanya pembuat tiket atau staf yang dapat menutup tiket ini!", ephemeral=True)
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya Admin atau Staf yang memiliki izin untuk menutup tiket ini!", ephemeral=True)
             return
 
-        await interaction.response.send_message("🔒 Tiket ini akan ditutup dan dihapus dalam 5 detik...", ephemeral=False)
+        await interaction.response.send_message("🔒 Tiket ini akan ditutup dan dihapus dalam 5 detik oleh staf...", ephemeral=False)
         await asyncio.sleep(5)
         try:
-            await interaction.channel.delete(reason="Tiket ditutup.")
+            await interaction.channel.delete(reason="Tiket ditutup oleh staf.")
         except Exception:
             pass
 
@@ -240,7 +233,6 @@ class BuyModal(discord.ui.Modal, title="BUY"):
         category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
         channel_name = f"ticket-{member.name}".lower()
 
-        # Konfigurasi agar channel awalnya tersembunyi dari staf umum (hanya bot & pembuat)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
@@ -253,7 +245,6 @@ class BuyModal(discord.ui.Modal, title="BUY"):
             else:
                 ticket_channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites)
 
-            # Pesan awal sebelum diklaim staf (detail pesanan disembunyikan sampai diklaim)
             initial_embed = discord.Embed(
                 title="🔒 TIKET BARU (MENUNGGU KLAIM STAF)",
                 description=f"Halo {member.mention}, tiket Anda telah dibuat.\n\nStaf kami belum mengetahui detail pesanan Anda hingga ada staf yang menekan tombol **Claim Ticket** di bawah ini.",
@@ -261,8 +252,12 @@ class BuyModal(discord.ui.Modal, title="BUY"):
             )
             initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
+            # Format tag role staf & mention pembeli secara otomatis
+            staff_role = guild.get_role(STAFF_ROLE_ID)
+            ping_text = f"{staff_role.mention} {member.mention}" if staff_role else f"{member.mention}"
+
             await ticket_channel.send(
-                content=f"{member.mention}", 
+                content=ping_text, 
                 embed=initial_embed, 
                 view=ClaimTicketView(member, data_pesanan)
             )
@@ -313,8 +308,12 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
             )
             initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
+            # Format tag role staf & mention pembeli secara otomatis
+            staff_role = guild.get_role(STAFF_ROLE_ID)
+            ping_text = f"{staff_role.mention} {member.mention}" if staff_role else f"{member.mention}"
+
             await ticket_channel.send(
-                content=f"{member.mention}", 
+                content=ping_text, 
                 embed=initial_embed, 
                 view=ClaimTicketView(member, data_pesanan)
             )
