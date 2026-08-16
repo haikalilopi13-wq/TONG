@@ -17,7 +17,7 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 GENERAL_CHANNEL_ID = 1538646829938516048  
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
 TESTIMONI_CHANNEL_ID = 1517625158263898284  
-STAFF_ROLE_ID = 1517580561361928463  # <--- ID Role "Staf" Anda sudah dipasang di sini!
+STAFF_ROLE_ID = 1517580561361928463  
 
 # Sistem Penyimpanan Level & XP di Memori
 user_data = {}
@@ -32,7 +32,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Claim, Tag Staf, & Close Khusus Admin/Staf!")
+    print("🚀 Bot siap dengan Sistem Rating Terkunci hingga Staf Membukanya!")
 
 @bot.event
 async def on_message(message):
@@ -164,15 +164,41 @@ class ClaimTicketView(discord.ui.View):
         for key, value in self.ticket_data.items():
             ticket_embed.add_field(name=key, value=value, inline=False)
             
-        ticket_embed.set_footer(text="Gunakan tombol di bawah untuk menutup tiket (Khusus Staf).")
+        ticket_embed.set_footer(text="Staf dapat mengaktifkan tombol rating atau menutup tiket di bawah.")
 
-        await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener))
+        # Kirim view kontrol di mana tombol rating AWALNYA MASIH TERKUNCI (disabled=True)
+        await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener, rating_unlocked=False))
         await interaction.response.send_message(f"✅ Anda berhasil mengklaim tiket ini!", ephemeral=True)
 
 class TicketControlView(discord.ui.View):
-    def __init__(self, ticket_opener: discord.Member):
+    def __init__(self, ticket_opener: discord.Member, rating_unlocked: bool = False):
         super().__init__(timeout=None)
         self.ticket_opener = ticket_opener
+        
+        # Atur status tombol rating berdasarkan izin staf
+        self.rate_ticket_btn_only.disabled = not rating_unlocked
+        if rating_unlocked:
+            self.rate_ticket_btn_only.label = "⭐ Beri Rating & Ulasan (Dibuka)"
+            self.rate_ticket_btn_only.style = discord.ButtonStyle.success
+        else:
+            self.rate_ticket_btn_only.label = "🔒 Rating (Menunggu Staf)"
+            self.rate_ticket_btn_only.style = discord.ButtonStyle.secondary
+
+    @discord.ui.button(label="✨ Buka Akses Rating", style=discord.ButtonStyle.primary, custom_id="unlock_rating_btn")
+    async def unlock_rating_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Hanya staf yang bisa membuka akses rating
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya Staf yang dapat membuka akses rating untuk pembeli!", ephemeral=True)
+            return
+
+        # Ubah view agar tombol rating terbuka (aktif)
+        self.remove_item(button) # Hapus tombol buka akses agar tidak diklik dua kali
+        
+        # Buat view baru dengan rating_unlocked = True
+        new_view = TicketControlViewUnlocked(self.ticket_opener)
+        
+        await interaction.message.edit(view=new_view)
+        await interaction.response.send_message("✅ Akses rating & ulasan telah dibuka untuk pembeli!", ephemeral=False)
 
     @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_only")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -187,7 +213,30 @@ class TicketControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(label="⭐ Beri Rating & Ulasan", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_only")
+    @discord.ui.button(label="🔒 Rating (Menunggu Staf)", style=discord.ButtonStyle.secondary, custom_id="rate_ticket_btn_only", disabled=True)
+    async def rate_ticket_btn_only(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass
+
+# View khusus setelah staf membuka akses rating
+class TicketControlViewUnlocked(discord.ui.View):
+    def __init__(self, ticket_opener: discord.Member):
+        super().__init__(timeout=None)
+        self.ticket_opener = ticket_opener
+
+    @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_unlocked")
+    async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya Admin atau Staf yang memiliki izin untuk menutup tiket ini!", ephemeral=True)
+            return
+
+        await interaction.response.send_message("🔒 Tiket ini akan ditutup dan dihapus dalam 5 detik oleh staf...", ephemeral=False)
+        await asyncio.sleep(5)
+        try:
+            await interaction.channel.delete(reason="Tiket ditutup oleh staf.")
+        except Exception:
+            pass
+
+    @discord.ui.button(label="⭐ Beri Rating & Ulasan", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_active")
     async def rate_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ Hanya pembuat tiket yang dapat memberikan ulasan!", ephemeral=True)
