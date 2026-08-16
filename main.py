@@ -105,18 +105,18 @@ async def show_info(ctx):
     )
     embed.add_field(
         name="🛡️ Moderasi & Admin",
-        value="`.clear [jumlah]` — Menghapus pesan chat\n"
+        value="`.clear` atau `.cls` — Menghapus pesan chat\n"
               "`.role @user [nama role]` — Memberikan/mencabut role\n"
               "`.ban @user [alasan]` — Memblokir member\n"
-              "`.timeout @user [menit] [alasan]` — Membisukan member\n"
-              "`.untimeout @user` — Membatalkan timeout/mute",
+              "`.timeout` / `.mute` — Membisukan member\n"
+              "`.untimeout` / `.unmute` / `.unt` — Batalkan mute",
         inline=False
     )
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
-        value="`.rank` — Cek level dan progress XP kamu\n"
-              "`.addxp @user [jumlah]` — Menambah XP user (Admin)\n"
-              "`.addlevel @user [jumlah]` — Menambah Level user (Admin)",
+        value="`.rank` / `.lvl` / `.level` — Cek level & XP kamu\n"
+              "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
+              "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
     )
     embed.add_field(
@@ -124,16 +124,16 @@ async def show_info(ctx):
         value="`.ping` — Cek kecepatan respon bot\n"
               "`.say [pesan]` — Mengulang pesan\n"
               "`.server` — Info lengkap server\n"
-              "`.whois [@user]` — Detail profil member\n"
-              "`.avatar [@user]` — Foto profil, info whois & role",
+              "`.whois` / `.ui` — Detail profil & role member\n"
+              "`.avatar` / `.pp` — Foto profil, whois & role",
         inline=False
     )
     embed.add_field(
         name="🎮 Fun, Games & Hiburan",
         value="`.roll` — Acak angka 1-100\n"
-              "`.coinflip` — Lempar koin\n"
-              "`.rps [batu/kertas/gunting]` — Main Suit\n"
-              "`.rate [sesuatu]` — Nilai sesuatu 0-100\n"
+              "`.coinflip` / `.koin` — Lempar koin\n"
+              "`.rps` — Main Suit\n"
+              "`.rate` — Nilai sesuatu 0-100\n"
               "`.quote` — Kata-kata bijak",
         inline=False
     )
@@ -153,15 +153,15 @@ async def check_rank(ctx, member: discord.Member = None):
     embed.add_field(name="⚡ XP Saat Ini", value=f"**{data['xp']} / {xp_needed}**", inline=True)
     await ctx.send(embed=embed)
 
-# --- ADMIN: MENAMBAH XP & LEVEL ---
-@bot.command(name="addxp")
+# --- ADMIN: MENAMBAH XP & LEVEL (Bisa Disingkat) ---
+@bot.command(name="addxp", aliases=["axp"])
 @commands.has_permissions(administrator=True)
 async def add_xp(ctx, member: discord.Member, amount: int):
     data = get_user_xp(member.id)
     data["xp"] += amount
     await ctx.send(f"✨ Berhasil menambahkan **{amount} XP** kepada {member.mention}. Total XP sekarang: `{data['xp']}`")
 
-@bot.command(name="addlevel")
+@bot.command(name="addlevel", aliases=["alvl", "alvlup"])
 @commands.has_permissions(administrator=True)
 async def add_level(ctx, member: discord.Member, amount: int):
     data = get_user_xp(member.id)
@@ -174,7 +174,7 @@ async def level_admin_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kamu harus memiliki izin *Administrator* untuk menggunakan perintah ini!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("⚠️ Format salah! Contoh: `.addxp @User 50` atau `.addlevel @User 2`")
+        await ctx.send("⚠️ Format salah! Contoh: `.axp @User 50` atau `.alvl @User 2`")
 
 # --- MODERASI: CLEAR PESAN ---
 @bot.command(name="clear", aliases=["purge", "cls"])
@@ -263,10 +263,10 @@ async def timeout_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kamu tidak memiliki izin *Moderate Members*!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("⚠️ Format salah! Contoh: `.timeout @User 10 Spam chat`")
+        await ctx.send("⚠️ Format salah! Contoh: `.timeout @User 10 Spam chat` (atau gunakan `.mute`)")
 
 # --- MODERASI: BATALKAN TIMEOUT (UNTIMEOUT / UNMUTE) ---
-@bot.command(name="untimeout", aliases=["unmute"])
+@bot.command(name="untimeout", aliases=["unmute", "unt"])
 @commands.has_permissions(moderate_members=True)
 async def untimeout_member(ctx, member: discord.Member, *, reason: str = "Selesai masa hukuman"):
     try:
@@ -280,7 +280,7 @@ async def untimeout_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kamu tidak memiliki izin *Moderate Members*!")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("⚠️ Format salah! Contoh: `.untimeout @User`")
+        await ctx.send("⚠️ Format salah! Contoh: `.untimeout @User` (atau `.unmute`)")
 
 # --- UTILITY COMMANDS ---
 @bot.command(name="say")
@@ -300,7 +300,7 @@ async def server_info(ctx):
     embed.set_footer(text=f"Server ID: {guild.id}")
     await ctx.send(embed=embed)
 
-@bot.command(name="whois", aliases=["userinfo"])
+@bot.command(name="whois", aliases=["userinfo", "ui"])
 async def whois_member(ctx, member: discord.Member = None):
     member = member or ctx.author
     embed = discord.Embed(title=f"👤 User Info — {member.name}", color=0x3498DB)
