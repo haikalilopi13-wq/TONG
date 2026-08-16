@@ -31,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Ganda (Store & Redfinger Split), Tiket, & Testimoni!")
+    print("🚀 Bot siap dengan Sistem Ganda & Tombol Terpisah (Close & Rating)!")
 
 @bot.event
 async def on_message(message):
@@ -67,8 +67,8 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ==================== SISTEM RATING & TESTIMONI VIEW ====================
-class RatingView(discord.ui.View):
+# ==================== VIEW PILIHAN BINTANG RATING ====================
+class RatingChoiceView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member):
         super().__init__(timeout=60)
         self.ticket_opener = ticket_opener
@@ -84,7 +84,7 @@ class RatingView(discord.ui.View):
         )
         testi_embed.add_field(name="👤 Pembeli / Klien", value=self.ticket_opener.mention, inline=True)
         testi_embed.add_field(name="🏆 Penilaian", value=rating_text, inline=True)
-        testi_embed.add_field(name="🛠️ Ditutup Oleh", value=interaction.user.mention, inline=False)
+        testi_embed.add_field(name="🛠️ Dinilai Oleh", value=interaction.user.mention, inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
         if testi_channel:
@@ -93,8 +93,7 @@ class RatingView(discord.ui.View):
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim ke channel testi. Channel akan ditutup dalam 5 detik...", ephemeral=True)
-        await self.disable_all_and_close(interaction.channel)
+        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim ke channel testi.", ephemeral=True)
 
     @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
     async def rate_5(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -108,41 +107,39 @@ class RatingView(discord.ui.View):
     async def rate_1(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.send_testimoni(interaction, "⭐ (Kurang)", 0xE74C3C)
 
-    async def disable_all_and_close(self, channel):
-        for child in self.children:
-            child.disabled = True
-        try:
-            await channel.edit(view=self)
-        except Exception:
-            pass
-        
-        await asyncio.sleep(5)
-        try:
-            await channel.delete(reason="Tiket selesai dan rating telah diberikan.")
-        except Exception:
-            pass
-
-# ==================== TOMBOL KONTROL TUTUP TIKET DI DALAM CHANNEL ====================
+# ==================== TOMBOL KONTROL TERPISAH (CLOSE & RATING) ====================
 class TicketControlView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member):
         super().__init__(timeout=None)
         self.ticket_opener = ticket_opener
 
-    @discord.ui.button(label="🔒 Close Ticket & Rating", style=discord.ButtonStyle.danger, custom_id="close_ticket_button")
+    # Tombol 1: Khusus Close Ticket (Bisa ditekan Pembuat Tiket atau Staf)
+    @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_only")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Diizinkan jika yang klik adalah pembuat tiket ATAU staf/admin
         if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ Hanya pembuat tiket atau staf yang dapat menutup tiket ini!", ephemeral=True)
             return
 
+        await interaction.response.send_message("🔒 Tiket ini akan ditutup dan dihapus dalam 5 detik...", ephemeral=False)
+        await asyncio.sleep(5)
+        try:
+            await interaction.channel.delete(reason="Tiket ditutup oleh user/staf.")
+        except Exception:
+            pass
+
+    # Tombol 2: Khusus Memberi Rating
+    @discord.ui.button(label="⭐ Beri Rating", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_only")
+    async def rate_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya pembuat tiket yang dapat memberikan rating!", ephemeral=True)
+            return
+
         embed = discord.Embed(
-            title="🔒 TIKET SELESAI / DITUTUP",
-            description=f"Tiket ditutup oleh {interaction.user.mention}. \n\nSilakan berikan penilaian/rating pelayanan kami dengan menekan tombol di bawah ini:",
+            title="⭐ PILIH RATING PELAYANAN",
+            description="Silakan pilih tingkat kepuasan Anda di bawah ini:",
             color=0xF1C40F
         )
-        embed.set_footer(text="Pilih tombol rating di bawah untuk mengirim testimoni otomatis ke channel testi.")
-        
-        await interaction.response.send_message(embed=embed, view=RatingView(self.ticket_opener))
+        await interaction.response.send_message(embed=embed, view=RatingChoiceView(self.ticket_opener), ephemeral=True)
 
 # ==================== FORMULIR PEMBELIAN (BUY MODAL) ====================
 class BuyModal(discord.ui.Modal, title="BUY"):
@@ -205,7 +202,7 @@ class BuyModal(discord.ui.Modal, title="BUY"):
             ticket_embed.add_field(name="📦 Mau Beli", value=produk, inline=False)
             ticket_embed.add_field(name="🔢 Jumlah", value=jml, inline=False)
             ticket_embed.add_field(name="👤 Roblox Username", value=roblox_name, inline=False)
-            ticket_embed.set_footer(text="Klik tombol di bawah untuk menutup tiket dan memberikan rating.")
+            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi rating atau menutup tiket.")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
@@ -285,7 +282,7 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
             ticket_embed.add_field(name="📦 Paket", value=pkt, inline=False)
             ticket_embed.add_field(name="🔢 Jumlah Slot Split", value=jml, inline=False)
             ticket_embed.add_field(name="📝 Catatan / User", value=catatan, inline=False)
-            ticket_embed.set_footer(text="Klik tombol di bawah untuk menutup tiket dan memberikan rating.")
+            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi rating atau menutup tiket.")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
@@ -383,12 +380,16 @@ async def close_ticket(ctx, member: discord.Member = None):
 
     embed = discord.Embed(
         title="🔒 TIKET SELESAI / DITUTUP",
-        description=f"Terima kasih {target_member.mention} telah memesan di **TONGSOP Store**. \n\nSilakan berikan penilaian/rating pelayanan kami dengan menekan tombol di bawah ini:",
+        description=f"Terima kasih {target_member.mention} telah memesan di **TONGSOP Store**.",
         color=0xF1C40F
     )
-    embed.set_footer(text="Pilih tombol rating di bawah untuk mengirim testimoni otomatis ke channel testi.")
-    
-    await ctx.send(embed=embed, view=RatingView(target_member))
+    embed.set_footer(text="Tiket ini ditutup oleh staf.")
+    await ctx.send(embed=embed)
+    await asyncio.sleep(3)
+    try:
+        await ctx.channel.delete()
+    except Exception:
+        pass
 
 @close_ticket.error
 async def closeticket_error(ctx, error):
