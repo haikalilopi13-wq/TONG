@@ -15,7 +15,7 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # Channel ID Target
 GENERAL_CHANNEL_ID = 1538646829938516048  
-TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
+TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  # Kategori tempat tiket dikelompokkan agar rapi
 TESTIMONI_CHANNEL_ID = 1517625158263898284        # Channel Testimoni Pembelian Umum
 REDFINGER_TESTI_CHANNEL_ID = 1538673467442856059 # Channel Testimoni Khusus Redfinger
 STAFF_ROLE_ID = 1517580561361928463  
@@ -33,7 +33,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Channel Testimoni Terpisah untuk Buy & Redfinger!")
+    print("🚀 Bot siap dengan Akses Staff PanelOrder & Manajemen Kategori Tiket!")
 
 @bot.event
 async def on_message(message):
@@ -75,7 +75,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         self.ticket_opener = ticket_opener
         self.rating_bintang = rating_bintang
         self.claimed_by = claimed_by
-        self.ticket_type = ticket_type # Membedakan apakah "buy" atau "redfinger"
+        self.ticket_type = ticket_type
 
         self.ulasan_teks = discord.ui.TextInput(
             label="Ulasan / Pesan Anda",
@@ -97,7 +97,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         else:
             color_code = 0xE74C3C
 
-        # Menentukan Channel Tujuan & Format Embed Berdasarkan Tipe Tiket
         if self.ticket_type == "redfinger":
             target_channel = guild.get_channel(REDFINGER_TESTI_CHANNEL_ID)
             embed_title = "📱 ⭐ TESTIMONI JASA SPLIT REDFINGER"
@@ -125,7 +124,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel khusus.", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim.", ephemeral=True)
 
 class RatingChoiceView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member, claimed_by: discord.Member, ticket_type: str):
@@ -294,7 +293,9 @@ class BuyModal(discord.ui.Modal, title="BUY"):
         guild = interaction.guild
         member = interaction.user
         category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
-        channel_name = f"ticket-{member.name}".lower()
+        
+        # Nama channel rapi dengan format terstruktur agar tidak bertumpuk berantakan
+        channel_name = f"buy-{member.name}".lower()
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -303,6 +304,7 @@ class BuyModal(discord.ui.Modal, title="BUY"):
         }
 
         try:
+            # Tiket dimasukkan ke dalam kategori khusus agar tidak menumpuk di luar
             if isinstance(category, discord.CategoryChannel):
                 ticket_channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
             else:
@@ -349,6 +351,8 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
         guild = interaction.guild
         member = interaction.user
         category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
+        
+        # Nama channel khusus redfinger agar terorganisir rapi di kategori
         channel_name = f"redfinger-{member.name}".lower()
 
         overwrites = {
@@ -413,9 +417,20 @@ async def show_info(ctx):
     embed.add_field(name="Perintah Utama", value="`.panelorder` — Kirim panel\n`.closeticket` — Tutup tiket", inline=False)
     await ctx.send(embed=embed)
 
+# Agar staff bisa menjalankan .panelorder, kita cek apakah user memiliki role staff atau izin manage_channels
 @bot.command(name="panelorder")
-@commands.has_permissions(administrator=True)
 async def manual_panel_order(ctx):
+    # Cek izin: Apakah user adalah Administrator, punya Manage Channels, atau memiliki role STAFF_ROLE_ID
+    is_staff = ctx.author.guild_permissions.administrator or ctx.author.guild_permissions.manage_channels
+    if not is_staff and STAFF_ROLE_ID:
+        staff_role_obj = ctx.guild.get_role(STAFF_ROLE_ID)
+        if staff_role_obj and staff_role_obj in ctx.author.roles:
+            is_staff = True
+
+    if not is_staff:
+        await ctx.send("❌ Hanya Staff atau Administrator yang dapat memunculkan panel order!")
+        return
+
     embed = discord.Embed(
         title="🛒 TONGSOP OFFICIAL TICKET SYSTEM",
         description="Silakan klik tombol di bawah ini untuk mengisi formulir pemesanan produk atau set up jasa split Redfinger.",
@@ -429,11 +444,6 @@ async def manual_panel_order(ctx):
         await ctx.send(f"✅ Panel order berhasil dikirim ke channel <#{GENERAL_CHANNEL_ID}>!")
     else:
         await ctx.send(embed=embed, view=BuyButtonView())
-
-@manual_panel_order.error
-async def panel_order_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Hanya Administrator yang dapat memunculkan panel order!")
 
 @bot.command(name="closeticket", aliases=["done", "selesai"])
 @commands.has_permissions(manage_channels=True)
