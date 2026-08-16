@@ -23,60 +23,55 @@ xp_cooldowns = {}
 
 # ==================== DATABASE SETUP ====================
 def init_db():
-    conn = sqlite3.connect("levels.db")
-    cursor = conn.cursor()
-    cursor.execute(
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 0
+            )
         """
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            xp INTEGER DEFAULT 0,
-            level INTEGER DEFAULT 0
         )
-    """
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
 
 
 init_db()
 
 
 def get_user_data(user_id):
-    conn = sqlite3.connect("levels.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
-    data = cursor.fetchone()
-    if not data:
-        cursor.execute(
-            "INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)",
-            (user_id, 0, 0),
-        )
-        conn.commit()
-        data = (0, 0)
-    conn.close()
-    return data
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
+        data = cursor.fetchone()
+        if not data:
+            cursor.execute(
+                "INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)",
+                (user_id, 0, 0),
+            )
+            conn.commit()
+            data = (0, 0)
+        return data
 
 
 def update_user_data(user_id, xp, level):
-    conn = sqlite3.connect("levels.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE users SET xp = ?, level = ? WHERE user_id = ?",
-        (xp, level, user_id),
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET xp = ?, level = ? WHERE user_id = ?",
+            (xp, level, user_id),
+        )
+        conn.commit()
 
 
 def get_top_users():
-    conn = sqlite3.connect("levels.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT user_id, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 5"
-    )
-    data = cursor.fetchall()
-    conn.close()
-    return data
+    with sqlite3.connect("levels.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id, level, xp FROM users ORDER BY level DESC, xp DESC LIMIT 5"
+        )
+        return cursor.fetchall()
 
 
 def get_xp_needed(level):
