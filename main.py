@@ -30,7 +30,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Webhook Avatar Asli, .pp, Leveling, & Moderasi Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Embed Kotak Rapih, .pp, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -117,7 +117,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 10 Leaderboard Webhook Foto Profil\n"
+              "`.top` / `.lb` — Cek Top 10 Leaderboard dalam Kotak Embed\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -137,7 +137,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 10 MENGGUNAKAN WEBHOOK (DENGAN FOTO PROFIL) ---
+# --- LEADERBOARD TOP 10 DI DALAM KOTAK EMBED PERSIS SEPERTI GAMBAR ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -147,18 +147,14 @@ async def show_leaderboard(ctx):
     # Urutkan berdasarkan level (tertinggi), lalu XP (tertinggi)
     sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
 
-    # Kirim judul leaderboard utama
-    await ctx.send("🏆 **LEADERBOARD TOP SERVER**")
+    # Menggunakan warna kuning/oranye khas embed leaderboards (0xF1C40F)
+    embed = discord.Embed(
+        title="🏆 LEADERBOARD TOP SERVER",
+        description="Daftar peringkat member teraktif di server:",
+        color=0xF1C40F
+    )
 
-    # Cari atau buat webhook channel untuk menampilkan foto profil tiap user
-    try:
-        webhooks = await ctx.channel.webhooks()
-        webhook = discord.utils.get(webhooks, name="TongsopLeaderboard")
-        if not webhook:
-            webhook = await ctx.channel.create_webhook(name="TongsopLeaderboard")
-    except Exception:
-        await ctx.send("⚠️ Bot memerlukan izin **Manage Webhooks** di channel ini untuk menampilkan foto profil.")
-        return
+    leaderboard_lines = []
 
     # Ambil hingga Top 10 member teratas
     for i, (user_id, data) in enumerate(sorted_users[:10]):
@@ -169,10 +165,10 @@ async def show_leaderboard(ctx):
             except Exception:
                 member = None
 
-        display_name = member.display_name if hasattr(member, 'display_name') else (member.name if member else f"User {user_id}")
-        avatar_url = member.avatar.url if member and member.avatar else (member.default_avatar.url if member else bot.user.avatar.url)
-
-        # Simbol peringkat
+        name = member.name if member else f"User {user_id}"
+        display_name = member.display_name if hasattr(member, 'display_name') else name
+        
+        # Simbol medali peringkat persis seperti gambar
         if i == 0:
             rank_num = "🥇 #1"
         elif i == 1:
@@ -182,21 +178,22 @@ async def show_leaderboard(ctx):
         else:
             rank_num = f"#{i+1}"
 
-        # Isi teks baris pesan dengan format persis permintaan Anda
-        content_line = f"**{rank_num}** • `@{display_name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
+        # Format teks baris di dalam kotak
+        line = f"**{rank_num}** • `@{display_name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
+        leaderboard_lines.append(line)
 
-        try:
-            await webhook.send(
-                content=content_line,
-                username=display_name,
-                avatar_url=avatar_url,
-                wait=True
-            )
-        except Exception:
-            pass
-        
-        # Jeda singkat agar pengiriman webhook berurutan dengan rapi
-        await asyncio.sleep(0.3)
+    # Masukkan ke dalam Field Embed dengan judul "Peringkat Teratas" dan icon 📊
+    embed.add_field(
+        name="📊 Peringkat Teratas",
+        value="\n".join(leaderboard_lines),
+        inline=False
+    )
+
+    # Footer persis seperti gambar: "Diminta oleh [Nama] • TONGSOP Store"
+    footer_icon = ctx.author.avatar.url if ctx.author.avatar else None
+    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store", icon_url=footer_icon)
+
+    await ctx.send(embed=embed)
 
 # --- LEVEL & XP COMMAND ---
 @bot.command(name="rank", aliases=["lvl", "level"])
