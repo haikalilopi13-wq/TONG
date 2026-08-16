@@ -13,11 +13,11 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel & Role ID Target (Ganti ID Role Staf di bawah ini)
+# Channel ID Target
 GENERAL_CHANNEL_ID = 1538646829938516048  
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
 TESTIMONI_CHANNEL_ID = 1517625158263898284  
-STAFF_ROLE_ID = 0000000000000000000  # <--- Ganti dengan ID Role Staf / Owner Anda
+STAFF_ROLE_ID = 1517580561361928463  # <--- ID Role "Staf" Anda sudah dipasang di sini!
 
 # Sistem Penyimpanan Level & XP di Memori
 user_data = {}
@@ -32,7 +32,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Claim, Close, & Notifikasi Tag Staf!")
+    print("🚀 Bot siap dengan Sistem Claim, Tag Staf, & Close Khusus Admin/Staf!")
 
 @bot.event
 async def on_message(message):
@@ -252,7 +252,6 @@ class BuyModal(discord.ui.Modal, title="BUY"):
             )
             initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
-            # Format tag role staf & mention pembeli secara otomatis
             staff_role = guild.get_role(STAFF_ROLE_ID)
             ping_text = f"{staff_role.mention} {member.mention}" if staff_role else f"{member.mention}"
 
@@ -308,7 +307,6 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
             )
             initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
-            # Format tag role staf & mention pembeli secara otomatis
             staff_role = guild.get_role(STAFF_ROLE_ID)
             ping_text = f"{staff_role.mention} {member.mention}" if staff_role else f"{member.mention}"
 
