@@ -16,7 +16,8 @@ bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 # Channel ID Target
 GENERAL_CHANNEL_ID = 1538646829938516048  
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  
-TESTIMONI_CHANNEL_ID = 1517625158263898284  
+TESTIMONI_CHANNEL_ID = 1517625158263898284        # Channel Testimoni Pembelian Umum
+REDFINGER_TESTI_CHANNEL_ID = 1538673467442856059 # Channel Testimoni Khusus Redfinger
 STAFF_ROLE_ID = 1517580561361928463  
 
 # Sistem Penyimpanan Level & XP di Memori
@@ -32,7 +33,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Testimoni Terpisah (Buy & Redfinger)!")
+    print("🚀 Bot siap dengan Channel Testimoni Terpisah untuk Buy & Redfinger!")
 
 @bot.event
 async def on_message(message):
@@ -74,7 +75,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         self.ticket_opener = ticket_opener
         self.rating_bintang = rating_bintang
         self.claimed_by = claimed_by
-        self.ticket_type = ticket_type # Membedakan apakah ini "buy" atau "redfinger"
+        self.ticket_type = ticket_type # Membedakan apakah "buy" atau "redfinger"
 
         self.ulasan_teks = discord.ui.TextInput(
             label="Ulasan / Pesan Anda",
@@ -87,7 +88,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
-        testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
         buyer = interaction.user
 
         if "5" in self.rating_bintang:
@@ -97,10 +97,12 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         else:
             color_code = 0xE74C3C
 
-        # Menentukan Judul Embed Berdasarkan Jenis Layanan
+        # Menentukan Channel Tujuan & Format Embed Berdasarkan Tipe Tiket
         if self.ticket_type == "redfinger":
+            target_channel = guild.get_channel(REDFINGER_TESTI_CHANNEL_ID)
             embed_title = "📱 ⭐ TESTIMONI JASA SPLIT REDFINGER"
         else:
+            target_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
             embed_title = "🛒 ⭐ TESTIMONI PEMBELIAN PRODUK"
 
         testi_embed = discord.Embed(
@@ -117,13 +119,13 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         testi_embed.add_field(name="💬 Ulasan Klien", value=f"*{self.ulasan_teks.value}*", inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-        if testi_channel:
+        if target_channel:
             try:
-                await testi_channel.send(embed=testi_embed)
+                await target_channel.send(embed=testi_embed)
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim.", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel khusus.", ephemeral=True)
 
 class RatingChoiceView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member, claimed_by: discord.Member, ticket_type: str):
