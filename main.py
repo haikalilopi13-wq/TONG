@@ -29,7 +29,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Kotak Embed Rapi & Fitur Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Embed Rapi, Mention Klik Profil, & Fitur Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -136,7 +136,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 10 DALAM SATU KOTAK EMBED RAPI ---
+# --- LEADERBOARD TOP 10 DALAM SATU KOTAK EMBED RAPI & BISA DIKLIK ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -164,9 +164,6 @@ async def show_leaderboard(ctx):
             except Exception:
                 member = None
 
-        name = member.name if member else f"User{user_id}"
-        display_name = member.display_name if hasattr(member, 'display_name') else name
-
         # Simbol medali peringkat
         if i == 0:
             rank_num = "🥇 #1"
@@ -177,8 +174,11 @@ async def show_leaderboard(ctx):
         else:
             rank_num = f"#{i+1}"
 
+        # Menggunakan member.mention agar nama bisa diklik untuk memunculkan profil
+        user_mention = member.mention if member else f"<@{user_id}>"
+
         # Format teks baris member di dalam embed
-        line = f"**{rank_num}** • `@{display_name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
+        line = f"**{rank_num}** • {user_mention} • LVL: `+{data['level']}` XP: `+{data['xp']}`"
         leaderboard_lines.append(line)
 
     # Masukkan daftar ke dalam 1 field embed agar menyatu dalam kotak
@@ -188,7 +188,7 @@ async def show_leaderboard(ctx):
         inline=False
     )
 
-    # Footer persis seperti gambar pertama Anda
+    # Footer peminta perintah
     footer_text = f"Diminta oleh {ctx.author.display_name} • TONGSOP Store"
     footer_icon = ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url
     embed.set_footer(text=footer_text, icon_url=footer_icon)
