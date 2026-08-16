@@ -137,7 +137,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 10 DI DALAM KOTAK EMBED ---
+# --- LEADERBOARD TOP 10 DI DALAM KOTAK EMBED (DENGAN TAMPILAN MIRIP GAMBAR) ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -149,7 +149,6 @@ async def show_leaderboard(ctx):
 
     embed = discord.Embed(
         title="🏆 LEADERBOARD TOP SERVER",
-        description="Daftar peringkat member teraktif di server:",
         color=0xF1C40F
     )
 
@@ -165,8 +164,9 @@ async def show_leaderboard(ctx):
                 member = None
 
         name = member.name if member else f"User {user_id}"
+        display_name = member.display_name if hasattr(member, 'display_name') else name
         
-        # Simbol peringkat
+        # Simbol peringkat medali/nomor persis seperti gambar
         if i == 0:
             rank_num = "🥇 #1"
         elif i == 1:
@@ -176,12 +176,13 @@ async def show_leaderboard(ctx):
         else:
             rank_num = f"#{i+1}"
 
-        line = f"**{rank_num}** • `@{name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
+        # Format teks di dalam kotak persis gaya gambar baru Anda
+        line = f"**{rank_num}** • `@{display_name}` • LVL: `+{data['level']}` XP: `+{data['xp']}`"
         leaderboard_lines.append(line)
 
-    # Masukkan seluruh daftar ke dalam 1 Field Kotak Embed
+    # Masukkan seluruh daftar ke dalam satu kotak embed rapih
     embed.add_field(
-        name="📊 Peringkat Teratas",
+        name="\u200b",
         value="\n".join(leaderboard_lines),
         inline=False
     )
