@@ -86,6 +86,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
+        buyer = interaction.user  # Pembeli yang mengisi ulasan
 
         if "5" in self.rating_bintang:
             color_code = 0x2ECC71
@@ -99,7 +100,13 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
             color=color_code
         )
-        testi_embed.add_field(name="👤 Pembeli / Klien", value=self.ticket_opener.mention, inline=True)
+        
+        # Menampilkan Mention (@User) sekaligus Username teks (@username)
+        testi_embed.add_field(
+            name="👤 Pembeli / Klien", 
+            value=f"{buyer.mention} (`@{buyer.name}`)", 
+            inline=True
+        )
         testi_embed.add_field(name="🏆 Penilaian", value=self.rating_bintang, inline=True)
         testi_embed.add_field(name="💬 Ulasan Pembeli", value=f"*{self.ulasan_teks.value}*", inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
