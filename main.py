@@ -177,7 +177,7 @@ class BuyModal(discord.ui.Modal, title="BUY"):
     
     jumlah = discord.ui.TextInput(
         label="Jumlah",
-        placeholder="semisal mau beli campur pakai koma contoh 10,10",
+        placeholder="Jumlah",
         style=discord.TextStyle.short,
         required=True
     )
@@ -249,26 +249,12 @@ class BuyModal(discord.ui.Modal, title="BUY"):
 # ==================== FORMULIR REDFINGER (SPLIT MODAL) ====================
 class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
     paket = discord.ui.TextInput(
-        label="Paket Redfinger",
-        placeholder="Contoh: KVIP / VIP / Standard",
+        label="Mau Redfinger",
+        placeholder="Contoh: Max 8 Split",
         style=discord.TextStyle.short,
         required=True
     )
     
-    jumlah_split = discord.ui.TextInput(
-        label="Berapa Slot Split?",
-        placeholder="Contoh: 5 Slot / 10 Slot",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    
-    username_roblox = discord.ui.TextInput(
-        label="User Name Roblox / Catatan",
-        placeholder="Masukkan username atau catatan tambahan",
-        style=discord.TextStyle.short,
-        required=True
-    )
-
     async def on_submit(self, interaction: discord.Interaction):
         pkt = self.paket.value
         jml = self.jumlah_split.value
