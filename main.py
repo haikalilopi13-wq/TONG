@@ -13,9 +13,9 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target (Ganti dengan ID channel server Anda)
+# Channel ID Target
 GENERAL_CHANNEL_ID = 1518084729122062488
-TICKET_CHANNEL_ID = 1517625110536786050
+TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  # <--- ID Kategori / Channel Referensi Tiket Anda
 TESTIMONI_CHANNEL_ID = 000000000000000000  # <--- Ganti dengan ID Channel Testimoni Anda
 
 # Sistem Penyimpanan Level & XP di Memori
@@ -31,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Form Modal, Testimoni, Tiket, & Leveling!")
+    print("🚀 Bot siap dengan Auto Create Ticket setelah Form Submit!")
 
 @bot.event
 async def on_message(message):
@@ -65,7 +65,7 @@ async def on_message(message):
             except Exception:
                 pass
 
-    # 2. Auto Response Panel Order / Tiket di Channel General
+    # 2. Auto Response Panel Order di Channel General
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
@@ -86,7 +86,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ==================== SISTEM FORM MODAL (BUY FORM) ====================
+# ==================== SISTEM FORM MODAL & AUTO CREATE TICKET ====================
 class BuyModal(discord.ui.Modal, title="BUY"):
     mau_beli = discord.ui.TextInput(
         label="Mau beli apa?",
@@ -114,13 +114,61 @@ class BuyModal(discord.ui.Modal, title="BUY"):
         jml = self.jumlah.value
         roblox_name = self.username_roblox.value
 
-        await interaction.response.send_message(
-            f"✅ Formulir pesanan berhasil dikirim!\n"
-            f"• **Mau beli:** {produk}\n"
-            f"• **Jumlah:** {jml}\n"
-            f"• **Roblox Name:** {roblox_name}",
-            ephemeral=True
-        )
+        guild = interaction.guild
+        member = interaction.user
+
+        # Ambil kategori berdasarkan ID referensi (jika ID tersebut adalah kategori)
+        category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
+        
+        # Buat nama channel tiket unik berdasarkan nama user
+        channel_name = f"ticket-{member.name}".lower()
+
+        # Atur izin agar hanya user terkait dan staf yang bisa melihat channel tiket baru
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
+        }
+
+        try:
+            # Jika ID target berupa kategori, masukkan ke dalam kategori tersebut
+            if isinstance(category, discord.CategoryChannel):
+                ticket_channel = await guild.create_text_channel(
+                    name=channel_name, 
+                    category=category, 
+                    overwrites=overwrites
+                )
+            else:
+                # Jika kategori tidak ditemukan, buat channel biasa
+                ticket_channel = await guild.create_text_channel(
+                    name=channel_name, 
+                    overwrites=overwrites
+                )
+
+            # Buat Embed rincian pesanan di dalam channel tiket baru
+            ticket_embed = discord.Embed(
+                title="🎟️ TIKET PEMESANAN BARU",
+                description=f"Halo {member.mention}, pesanan Anda telah diterima dan tiket berhasil dibuat!\n\nMohon tunggu sebentar, staf kami akan segera melayani Anda.",
+                color=0x3498DB
+            )
+            ticket_embed.add_field(name="📦 Mau Beli", value=produk, inline=False)
+            ticket_embed.add_field(name="🔢 Jumlah", value=jml, inline=False)
+            ticket_embed.add_field(name="👤 Roblox Username", value=roblox_name, inline=False)
+            ticket_embed.set_footer(text="Gunakan perintah .done atau .closeticket untuk menutup tiket ini.")
+
+            await ticket_channel.send(content=f"{member.origin if hasattr(member, 'origin') else member.mention}", embed=ticket_embed)
+
+            # Beritahu user secara privat bahwa tiketnya sudah jadi
+            await interaction.response.send_message(
+                f"✅ Formulir berhasil dikirim! Channel tiket Anda telah dibuat di: {ticket_channel.mention}",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Terjadi kesalahan saat membuat channel tiket: {e}",
+                ephemeral=True
+            )
 
 class BuyButtonView(discord.ui.View):
     def __init__(self):
@@ -156,7 +204,7 @@ class RatingView(discord.ui.View):
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim ke channel testi. Channel akan ditutup dalam 5 detik...", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim. Channel akan ditutup dalam 5 detik...", ephemeral=True)
         await self.disable_all_and_close(interaction.channel)
 
     @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
@@ -222,7 +270,6 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- PERINTAH PANEL ORDER MANUAL (ADMIN) ---
 @bot.command(name="panelorder")
 @commands.has_permissions(administrator=True)
 async def manual_panel_order(ctx):
@@ -239,7 +286,6 @@ async def panel_order_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Hanya Administrator yang dapat memunculkan panel order!")
 
-# --- PERINTAH MENUTUP TIKET & RATING (.done / .closeticket) [Hanya Staf/Mod] ---
 @bot.command(name="closeticket", aliases=["done", "selesai"])
 @commands.has_permissions(manage_channels=True)
 async def close_ticket(ctx, member: discord.Member = None):
@@ -259,7 +305,6 @@ async def closeticket_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kamu tidak memiliki izin untuk menutup tiket!")
 
-# --- LEADERBOARD TOP 10 ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -296,7 +341,6 @@ async def show_leaderboard(ctx):
     embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store")
     await ctx.send(embed=embed)
 
-# --- RANK & XP ---
 @bot.command(name="rank", aliases=["lvl", "level"])
 async def check_rank(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -309,14 +353,6 @@ async def check_rank(ctx, member: discord.Member = None):
     embed.add_field(name="⚡ XP Saat Ini", value=f"**{data['xp']} / {xp_needed}**", inline=True)
     await ctx.send(embed=embed)
 
-@bot.command(name="addxp", aliases=["axp"])
-@commands.has_permissions(administrator=True)
-async def add_xp(ctx, member: discord.Member, amount: int):
-    data = get_user_xp(member.id)
-    data["xp"] += amount
-    await ctx.send(f"✨ Berhasil menambahkan **{amount} XP** kepada {member.mention}.")
-
-# --- MODERASI (CLEAR, ROLE, BAN) ---
 @bot.command(name="clear", aliases=["purge", "cls"])
 @commands.has_permissions(manage_messages=True)
 async def clear_messages(ctx, amount: int = 5):
@@ -346,7 +382,6 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "Tidak ada al
     await member.ban(reason=reason)
     await ctx.send(f"🔨 Berhasil membanned {member.mention}. Alasan: `{reason}`")
 
-# --- UTILITY & FUN ---
 @bot.command(name="server", aliases=["serverinfo"])
 async def server_info(ctx):
     guild = ctx.guild
