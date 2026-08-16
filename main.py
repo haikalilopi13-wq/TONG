@@ -31,14 +31,13 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Ganda & Ulasan Teks Kustom!")
+    print("🚀 Bot siap dengan Sistem Claim Ticket & Ulasan Kustom!")
 
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # 1. Sistem Level & XP Otomatis (Cooldown 60 Detik per User)
     now = datetime.datetime.now().timestamp()
     user_id = message.author.id
 
@@ -86,7 +85,7 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
         testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
-        buyer = interaction.user  # Pembeli yang mengisi ulasan
+        buyer = interaction.user
 
         if "5" in self.rating_bintang:
             color_code = 0x2ECC71
@@ -100,8 +99,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
             color=color_code
         )
-        
-        # Menampilkan Mention (@User) sekaligus Username teks (@username)
         testi_embed.add_field(
             name="👤 Pembeli / Klien", 
             value=f"{buyer.mention} (`@{buyer.name}`)", 
@@ -119,7 +116,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
 
         await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel testi.", ephemeral=True)
 
-# ==================== VIEW PILIHAN BINTANG RATING ====================
 class RatingChoiceView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member):
         super().__init__(timeout=60)
@@ -137,7 +133,49 @@ class RatingChoiceView(discord.ui.View):
     async def rate_1(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐ (Kurang)"))
 
-# ==================== TOMBOL KONTROL TERPISAH (CLOSE & RATING) ====================
+# ==================== VIEW KONTROL & CLAIM TIKET ====================
+class ClaimTicketView(discord.ui.View):
+    def __init__(self, ticket_opener: discord.Member, ticket_data: dict):
+        super().__init__(timeout=None)
+        self.ticket_opener = ticket_opener
+        self.ticket_data = ticket_data
+        self.claimed_by = None
+
+    @discord.ui.button(label="🤝 Claim Ticket", style=discord.ButtonStyle.success, custom_id="claim_ticket_btn")
+    async def claim_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Cek apakah yang klik punya izin manage_channels / staf
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Hanya Staf/Admin yang dapat mengklaim tiket ini!", ephemeral=True)
+            return
+
+        if self.claimed_by is not None:
+            await interaction.response.send_message(f"❌ Tiket ini sudah diklaim oleh {self.claimed_by.mention}!", ephemeral=True)
+            return
+
+        self.claimed_by = interaction.user
+        button.disabled = True
+        button.label = f"Claimed by {interaction.user.name}"
+        button.style = discord.ButtonStyle.secondary
+
+        # Berikan akses penuh ke staf yang mengklaim
+        await interaction.channel.set_permissions(interaction.user, view_channel=True, send_messages=True)
+
+        # Buat embed data pesanan yang sebelumnya disembunyikan
+        ticket_embed = discord.Embed(
+            title="🎟️ TIKET DIKLAIM & DIBUKA",
+            description=f"Tiket ini telah diambil oleh staf {interaction.user.mention}.\n\nPembuat Tiket: {self.ticket_opener.mention} (`@{self.ticket_opener.name}`)",
+            color=0x3498DB
+        )
+        
+        for key, value in self.ticket_data.items():
+            ticket_embed.add_field(name=key, value=value, inline=False)
+            
+        ticket_embed.set_footer(text="Gunakan tombol di bawah untuk menutup tiket.")
+
+        # Update pesan dengan menampilkan data lengkap & tombol kontrol biasa (Close & Rating)
+        await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener))
+        await interaction.response.send_message(f"✅ Anda berhasil mengklaim tiket ini!", ephemeral=True)
+
 class TicketControlView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member):
         super().__init__(timeout=None)
@@ -152,7 +190,7 @@ class TicketControlView(discord.ui.View):
         await interaction.response.send_message("🔒 Tiket ini akan ditutup dan dihapus dalam 5 detik...", ephemeral=False)
         await asyncio.sleep(5)
         try:
-            await interaction.channel.delete(reason="Tiket ditutup oleh user/staf.")
+            await interaction.channel.delete(reason="Tiket ditutup.")
         except Exception:
             pass
 
@@ -177,14 +215,12 @@ class BuyModal(discord.ui.Modal, title="BUY"):
         style=discord.TextStyle.short,
         required=True
     )
-    
     jumlah = discord.ui.TextInput(
         label="Jumlah",
         placeholder="Jumlah",
         style=discord.TextStyle.short,
         required=True
     )
-    
     username_roblox = discord.ui.TextInput(
         label="User Name Roblox",
         placeholder="Masukkan username Roblox Anda",
@@ -193,16 +229,18 @@ class BuyModal(discord.ui.Modal, title="BUY"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        produk = self.mau_beli.value
-        jml = self.jumlah.value
-        roblox_name = self.username_roblox.value
+        data_pesanan = {
+            "📦 Mau Beli": self.mau_beli.value,
+            "🔢 Jumlah": self.jumlah.value,
+            "👤 Roblox Username": self.username_roblox.value
+        }
 
         guild = interaction.guild
         member = interaction.user
-
         category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
         channel_name = f"ticket-{member.name}".lower()
 
+        # Konfigurasi agar channel awalnya tersembunyi dari staf umum (hanya bot & pembuat)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
             member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
@@ -211,43 +249,31 @@ class BuyModal(discord.ui.Modal, title="BUY"):
 
         try:
             if isinstance(category, discord.CategoryChannel):
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    category=category, 
-                    overwrites=overwrites
-                )
+                ticket_channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
             else:
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    overwrites=overwrites
-                )
+                ticket_channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites)
 
-            ticket_embed = discord.Embed(
-                title="🎟️ TIKET PEMESANAN BARU",
-                description=f"Halo {member.mention}, pesanan Anda telah diterima dan tiket berhasil dibuat!\n\nMohon tunggu sebentar, staf kami akan segera melayani Anda.",
-                color=0x3498DB
+            # Pesan awal sebelum diklaim staf (detail pesanan disembunyikan sampai diklaim)
+            initial_embed = discord.Embed(
+                title="🔒 TIKET BARU (MENUNGGU KLAIM STAF)",
+                description=f"Halo {member.mention}, tiket Anda telah dibuat.\n\nStaf kami belum mengetahui detail pesanan Anda hingga ada staf yang menekan tombol **Claim Ticket** di bawah ini.",
+                color=0xE67E22
             )
-            ticket_embed.add_field(name="📦 Mau Beli", value=produk, inline=False)
-            ticket_embed.add_field(name="🔢 Jumlah", value=jml, inline=False)
-            ticket_embed.add_field(name="👤 Roblox Username", value=roblox_name, inline=False)
-            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi ulasan atau menutup tiket.")
+            initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
-                embed=ticket_embed, 
-                view=TicketControlView(member)
+                embed=initial_embed, 
+                view=ClaimTicketView(member, data_pesanan)
             )
 
             await interaction.response.send_message(
-                f"✅ Formulir berhasil dikirim! Channel tiket Anda telah dibuat di: {ticket_channel.mention}",
+                f"✅ Formulir berhasil dikirim! Channel tiket Anda: {ticket_channel.mention}",
                 ephemeral=True
             )
 
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Terjadi kesalahan saat membuat channel tiket: {e}",
-                ephemeral=True
-            )
+            await interaction.response.send_message(f"❌ Terjadi kesalahan: {e}", ephemeral=True)
 
 # ==================== FORMULIR REDFINGER (1 KOLOM) ====================
 class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
@@ -259,11 +285,12 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
     )
     
     async def on_submit(self, interaction: discord.Interaction):
-        pkt = self.paket.value
+        data_pesanan = {
+            "📱 Split Redfinger": self.paket.value
+        }
 
         guild = interaction.guild
         member = interaction.user
-
         category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
         channel_name = f"redfinger-{member.name}".lower()
 
@@ -275,29 +302,21 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
 
         try:
             if isinstance(category, discord.CategoryChannel):
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    category=category, 
-                    overwrites=overwrites
-                )
+                ticket_channel = await guild.create_text_channel(name=channel_name, category=category, overwrites=overwrites)
             else:
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    overwrites=overwrites
-                )
+                ticket_channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites)
 
-            ticket_embed = discord.Embed(
-                title="📱 TIKET SET UP REDFINGER",
-                description=f"Halo {member.mention}, pesanan jasa split Redfinger Anda telah diterima!",
+            initial_embed = discord.Embed(
+                title="🔒 TIKET REDFINGER (MENUNGGU KLAIM STAF)",
+                description=f"Halo {member.mention}, pesanan jasa split Redfinger Anda telah dibuat.\n\nDetail pesanan akan terbuka setelah staf menekan tombol **Claim Ticket**.",
                 color=0xE67E22
             )
-            ticket_embed.add_field(name="📱 Split Redfinger", value=pkt, inline=False)
-            ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi ulasan atau menutup tiket.")
+            initial_embed.set_footer(text="Menunggu staf mengambil alih tiket...")
 
             await ticket_channel.send(
                 content=f"{member.mention}", 
-                embed=ticket_embed, 
-                view=TicketControlView(member)
+                embed=initial_embed, 
+                view=ClaimTicketView(member, data_pesanan)
             )
 
             await interaction.response.send_message(
@@ -306,12 +325,9 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
             )
 
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Terjadi kesalahan: {e}",
-                ephemeral=True
-            )
+            await interaction.response.send_message(f"❌ Terjadi kesalahan: {e}", ephemeral=True)
 
-# ==================== VIEW TOMBOL BERDAMPINGAN ====================
+# ==================== VIEW TOMBOL UTAMA PANEL ====================
 class BuyButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -324,7 +340,7 @@ class BuyButtonView(discord.ui.View):
     async def open_redfinger(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(RedfingerModal())
 
-# ==================== KUMPULAN PERINTAH ====================
+# ==================== PERINTAH BOT ====================
 
 @bot.command(name="ping")
 async def check_ping(ctx):
@@ -333,32 +349,8 @@ async def check_ping(ctx):
 
 @bot.command(name="info", aliases=["help"])
 async def show_info(ctx):
-    embed = discord.Embed(
-        title="📌 PUSAT BANTUAN & DAFTAR PERINTAH",
-        description="Gunakan awalan titik (`.`) untuk menjalankan perintah berikut:",
-        color=0x3498DB,
-    )
-    embed.add_field(
-        name="🛡️ Moderasi, Admin & Tiket",
-        value="`.panelorder` — Mengirim panel form pembelian & redfinger\n"
-              "`.clear` / `.cls` — Menghapus pesan\n"
-              "`.closeticket` / `.done` — Menutup tiket\n"
-              "`.role @user [nama role]` — Memberikan/mencabut role\n"
-              "`.ban @user [alasan]` — Memblokir member",
-        inline=False
-    )
-    embed.add_field(
-        name="📊 Level & XP",
-        value="`.rank` — Cek kartu profil & XP\n"
-              "`.top` / `.lb` — Cek Leaderboard server",
-        inline=False
-    )
-    embed.add_field(
-        name="🛠️ Utility & Hiburan",
-        value="`.server` | `.whois` | `.avatar` | `.roll` | `.coinflip` | `.rps` | `.quote`",
-        inline=False
-    )
-    embed.set_footer(text="TONGSOP Store • All Rights Reserved")
+    embed = discord.Embed(title="📌 PUSAT BANTUAN & DAFTAR PERINTAH", description="Gunakan awalan titik (`.`)", color=0x3498DB)
+    embed.add_field(name="Perintah Utama", value="`.panelorder` — Kirim panel\n`.closeticket` — Tutup tiket", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name="panelorder")
@@ -385,133 +377,14 @@ async def panel_order_error(ctx, error):
 
 @bot.command(name="closeticket", aliases=["done", "selesai"])
 @commands.has_permissions(manage_channels=True)
-async def close_ticket(ctx, member: discord.Member = None):
-    target_member = member or ctx.author 
-
-    embed = discord.Embed(
-        title="🔒 TIKET SELESAI / DITUTUP",
-        description=f"Terima kasih {target_member.mention} telah memesan di **TONGSOP Store**.",
-        color=0xF1C40F
-    )
-    embed.set_footer(text="Tiket ini ditutup oleh staf.")
+async def close_ticket(ctx):
+    embed = discord.Embed(title="🔒 TIKET DITUTUP", description="Tiket ini akan dihapus...", color=0xF1C40F)
     await ctx.send(embed=embed)
     await asyncio.sleep(3)
     try:
         await ctx.channel.delete()
     except Exception:
         pass
-
-@close_ticket.error
-async def closeticket_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin untuk menutup tiket!")
-
-@bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
-async def show_leaderboard(ctx):
-    if not user_data:
-        await ctx.send("❌ Belum ada data level di server ini.")
-        return
-
-    sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
-
-    embed = discord.Embed(
-        title="🏆 LEADERBOARD TOP SERVER",
-        description="Daftar peringkat member teraktif di server:",
-        color=0xF1C40F
-    )
-
-    leaderboard_lines = []
-    for i, (user_id, data) in enumerate(sorted_users[:10]):
-        member = ctx.guild.get_member(user_id)
-        if not member:
-            try:
-                member = await bot.fetch_user(user_id)
-            except Exception:
-                member = None
-
-        if i == 0: rank_num = "🥇 #1"
-        elif i == 1: rank_num = "🥈 #2"
-        elif i == 2: rank_num = "🥉 #3"
-        else: rank_num = f"#{i+1}"
-
-        user_mention = member.mention if member else f"<@{user_id}>"
-        line = f"**{rank_num}** • {user_mention} • LVL: `+{data['level']}` XP: `+{data['xp']}`"
-        leaderboard_lines.append(line)
-
-    embed.add_field(name="📊 Peringkat Teratas", value="\n".join(leaderboard_lines), inline=False)
-    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store")
-    await ctx.send(embed=embed)
-
-@bot.command(name="rank", aliases=["lvl", "level"])
-async def check_rank(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    data = get_user_xp(target.id)
-    xp_needed = (data["level"] + 1) * 100
-
-    embed = discord.Embed(title=f"📊 Status Kartu Profil — {target.display_name}", color=0x3498DB)
-    embed.set_thumbnail(url=target.avatar.url if target.avatar else target.default_avatar.url)
-    embed.add_field(name="✨ Level", value=f"**{data['level']}**", inline=True)
-    embed.add_field(name="⚡ XP Saat Ini", value=f"**{data['xp']} / {xp_needed}**", inline=True)
-    await ctx.send(embed=embed)
-
-@bot.command(name="clear", aliases=["purge", "cls"])
-@commands.has_permissions(manage_messages=True)
-async def clear_messages(ctx, amount: int = 5):
-    deleted = await ctx.channel.purge(limit=amount + 1)
-    msg = await ctx.send(f"🧹 Berhasil menghapus **{len(deleted) - 1}** pesan.")
-    await asyncio.sleep(3)
-    try: await msg.delete()
-    except Exception: pass
-
-@bot.command(name="role", aliases=["giverole"])
-@commands.has_permissions(manage_roles=True)
-async def manage_role(ctx, member: discord.Member, *, rolename: str):
-    guild = ctx.guild
-    role = discord.utils.get(guild.roles, name=rolename)
-    if not role:
-        role = await guild.create_role(name=rolename)
-    if role in member.roles:
-        await member.remove_roles(role)
-        await ctx.send(f"✅ Berhasil **mencabut** role `{role.name}` dari {member.mention}.")
-    else:
-        await member.add_roles(role)
-        await ctx.send(f"✅ Berhasil **memberikan** role `{role.name}` kepada {member.mention}!")
-
-@bot.command(name="ban")
-@commands.has_permissions(ban_members=True)
-async def ban_member(ctx, member: discord.Member, *, reason: str = "Tidak ada alasan"):
-    await member.ban(reason=reason)
-    await ctx.send(f"🔨 Berhasil membanned {member.mention}. Alasan: `{reason}`")
-
-@bot.command(name="server", aliases=["serverinfo"])
-async def server_info(ctx):
-    guild = ctx.guild
-    embed = discord.Embed(title=f"📊 Informasi Server: {guild.name}", color=0x2ECC71)
-    if guild.icon: embed.set_thumbnail(url=guild.icon.url)
-    embed.add_field(name="👑 Pemilik", value=guild.owner.mention if guild.owner else "N/A", inline=True)
-    embed.add_field(name="👥 Total Member", value=f"`{guild.member_count}`", inline=True)
-    await ctx.send(embed=embed)
-
-@bot.command(name="avatar", aliases=["pp"])
-async def show_avatar(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    embed = discord.Embed(title=f"🖼️ Avatar — {target.name}", color=0x9B59B6)
-    embed.set_image(url=target.avatar.url if target.avatar else target.default_avatar.url)
-    await ctx.send(embed=embed)
-
-@bot.command(name="quote")
-async def random_quote(ctx):
-    url = "https://api.quotable.io/random"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    await ctx.send(f"💬 *“{data.get('content')}”* \n— **{data.get('author')}**")
-                    return
-    except Exception:
-        pass
-    await ctx.send("💬 *“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”*")
 
 # ==================== RUN BOT ====================
 TOKEN = os.getenv("BOT_TOKEN")
