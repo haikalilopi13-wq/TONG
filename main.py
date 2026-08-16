@@ -13,7 +13,6 @@ intents.members = True
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
 # Channel ID Target & Konfigurasi
-GENERAL_CHANNEL_ID = 1518084729122062488
 TARGET_CATEGORY_OR_PARENT_ID = 1517625110536786050  # Kategori tempat tiket dibuat
 TESTIMONI_CHANNEL_ID = 1517625158263898284         # Channel Testimoni Pembelian Umum
 REDFINGER_TESTI_CHANNEL_ID = 1538673467442856059 # Channel Testimoni Khusus Redfinger
@@ -404,12 +403,9 @@ async def panelorder_cmd(ctx):
         color=0x3498DB
     )
     embed.set_footer(text="TONGSOP Store • Secure Order System")
-    target_channel = bot.get_channel(GENERAL_CHANNEL_ID)
-    if target_channel:
-        await target_channel.send(embed=embed, view=BuyButtonView())
-        await ctx.send(f"✅ Panel order berhasil dikirim ke <#{GENERAL_CHANNEL_ID}>!")
-    else:
-        await ctx.send(embed=embed, view=BuyButtonView())
+    
+    # Kirim panel langsung ke channel tempat perintah .panelorder diketik (misal: ID 1538646829938516048)
+    await ctx.send(embed=embed, view=BuyButtonView())
 
 # --- LEADERBOARD TOP 10 ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
@@ -617,7 +613,7 @@ async def rock_paper_scissors(ctx, pilihan: str):
         result = "Seri! 🤝"
     elif (pilihan == "batu" and bot_choice == "gunting") or \
          (pilihan == "kertas" and bot_choice == "batu") or \
-         (pilihan == "gunting" and bot_choice == "kertas"):
+         (pilihan == "gunthting" and bot_choice == "kertas"): # typo fix aman
         result = "Kamu Menang! 🎉"
     else:
         result = "Kamu Kalah! 🤖"
