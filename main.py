@@ -28,7 +28,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Siap melayani server dengan Leaderboard Top 3 beravatar, Leveling, Untimeout, dan Moderasi Lengkap!")
+    print("🚀 Siap melayani server dengan Leaderboard Top 3, Perintah .pp / .avatar, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -124,7 +124,7 @@ async def show_info(ctx):
         name="🛠️ Utility & Informasi",
         value="`.server` — Info lengkap server\n"
               "`.whois` / `.ui` — Detail profil & role member\n"
-              "`.avatar` / `.pp` — Foto profil, whois & role",
+              "`.avatar` / `.pp` — Cek foto profil & role user",
         inline=False
     )
     embed.add_field(
@@ -338,6 +338,7 @@ async def whois_member(ctx, member: discord.Member = None):
     embed.add_field(name="Bergabung Sejak", value=member.joined_at.strftime("%d %b %Y") if member.joined_at else "-", inline=False)
     await ctx.send(embed=embed)
 
+# --- PERINTAH CEK FOTO PROFIL & AVATAR (.pp / .avatar) ---
 @bot.command(name="avatar", aliases=["pp"])
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
