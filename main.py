@@ -31,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Ganda (Store & Redfinger Split), Tiket, & Testimoni!")
+    print("🚀 Bot siap dengan Sistem Tiket Tunggal, Level, & Testimoni!")
 
 @bot.event
 async def on_message(message):
@@ -65,7 +65,7 @@ async def on_message(message):
             except Exception:
                 pass
 
-    # 2. Auto Response Panel Order Ganda di Channel General
+    # 2. Auto Response Panel Order Tunggal di Channel General
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
@@ -76,7 +76,7 @@ async def on_message(message):
 
         embed = discord.Embed(
             title="🛒 TONGSOP OFFICIAL TICKET SYSTEM",
-            description="Selamat datang! Ingin melakukan pemesanan produk atau set up jasa split Redfinger? Silakan pilih tombol di bawah ini.",
+            description="Selamat datang! Ingin melakukan pemesanan produk atau set up Redfinger? Silakan klik tombol di bawah untuk mengisi formulir pesanan.",
             color=0x3498DB,
         )
         embed.set_footer(text="TONGSOP Store • Secure & Trusted Service")
@@ -141,7 +141,7 @@ class RatingView(discord.ui.View):
         except Exception:
             pass
 
-# ==================== TOMBOL KONTROL TUTUP TIKET DI DALAM CHANNEL ====================
+# ==================== TOMBOL KONTROL TUTUP TIKET ====================
 class TicketControlView(discord.ui.View):
     def __init__(self, ticket_opener: discord.Member):
         super().__init__(timeout=None)
@@ -162,25 +162,25 @@ class TicketControlView(discord.ui.View):
         
         await interaction.response.send_message(embed=embed, view=RatingView(self.ticket_opener))
 
-# ==================== FORMULIR PEMBELIAN (BUY MODAL) ====================
-class BuyModal(discord.ui.Modal, title="BUY"):
+# ==================== FORMULIR PEMESANAN TUNGGAL ====================
+class BuyModal(discord.ui.Modal, title="FORMULIR PEMESANAN & REDFINGER"):
     mau_beli = discord.ui.TextInput(
-        label="Mau beli apa?",
-        placeholder="Make a selection",
+        label="Mau Beli / Paket Redfinger?",
+        placeholder="Contoh: Produk Robux / Paket VIP Redfinger",
         style=discord.TextStyle.short,
         required=True
     )
     
     jumlah = discord.ui.TextInput(
-        label="Jumlah",
-        placeholder="semisal mau beli campur pakai koma contoh 10,10",
+        label="Jumlah / Slot Split?",
+        placeholder="Contoh: 10 / 5 Slot",
         style=discord.TextStyle.short,
         required=True
     )
     
     username_roblox = discord.ui.TextInput(
-        label="User Name Roblox",
-        placeholder="Masukkan username Roblox Anda",
+        label="User Name Roblox / Catatan",
+        placeholder="Masukkan username atau catatan tambahan",
         style=discord.TextStyle.short,
         required=True
     )
@@ -220,9 +220,9 @@ class BuyModal(discord.ui.Modal, title="BUY"):
                 description=f"Halo {member.mention}, pesanan Anda telah diterima dan tiket berhasil dibuat!\n\nMohon tunggu sebentar, staf kami akan segera melayani Anda.",
                 color=0x3498DB
             )
-            ticket_embed.add_field(name="📦 Mau Beli", value=produk, inline=False)
-            ticket_embed.add_field(name="🔢 Jumlah", value=jml, inline=False)
-            ticket_embed.add_field(name="👤 Roblox Username", value=roblox_name, inline=False)
+            ticket_embed.add_field(name="📦 Layanan / Produk", value=produk, inline=False)
+            ticket_embed.add_field(name="🔢 Jumlah / Slot", value=jml, inline=False)
+            ticket_embed.add_field(name="👤 Catatan / Username", value=roblox_name, inline=False)
             ticket_embed.set_footer(text="Klik tombol di bawah untuk menutup tiket dan memberikan rating.")
 
             await ticket_channel.send(
@@ -242,98 +242,14 @@ class BuyModal(discord.ui.Modal, title="BUY"):
                 ephemeral=True
             )
 
-# ==================== FORMULIR REDFINGER (SPLIT MODAL) ====================
-class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
-    paket = discord.ui.TextInput(
-        label="Paket Redfinger",
-        placeholder="Contoh: KVIP / VIP / Standard",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    
-    jumlah_split = discord.ui.TextInput(
-        label="Berapa Slot Split?",
-        placeholder="Contoh: 5 Slot / 10 Slot",
-        style=discord.TextStyle.short,
-        required=True
-    )
-    
-    username_roblox = discord.ui.TextInput(
-        label="User Name Roblox / Catatan",
-        placeholder="Masukkan username atau catatan tambahan",
-        style=discord.TextStyle.short,
-        required=True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        pkt = self.paket.value
-        jml = self.jumlah_split.value
-        catatan = self.username_roblox.value
-
-        guild = interaction.guild
-        member = interaction.user
-
-        category = guild.get_channel(TARGET_CATEGORY_OR_PARENT_ID)
-        channel_name = f"redfinger-{member.name}".lower()
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
-        }
-
-        try:
-            if isinstance(category, discord.CategoryChannel):
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    category=category, 
-                    overwrites=overwrites
-                )
-            else:
-                ticket_channel = await guild.create_text_channel(
-                    name=channel_name, 
-                    overwrites=overwrites
-                )
-
-            ticket_embed = discord.Embed(
-                title="📱 TIKET SET UP REDFINGER",
-                description=f"Halo {member.mention}, pesanan jasa split Redfinger Anda telah diterima!",
-                color=0xE67E22
-            )
-            ticket_embed.add_field(name="📦 Paket", value=pkt, inline=False)
-            ticket_embed.add_field(name="🔢 Jumlah Slot Split", value=jml, inline=False)
-            ticket_embed.add_field(name="📝 Catatan / User", value=catatan, inline=False)
-            ticket_embed.set_footer(text="Klik tombol di bawah untuk menutup tiket dan memberikan rating.")
-
-            await ticket_channel.send(
-                content=f"{member.mention}", 
-                embed=ticket_embed, 
-                view=TicketControlView(member)
-            )
-
-            await interaction.response.send_message(
-                f"✅ Formulir Redfinger terkirim! Channel tiket Anda: {ticket_channel.mention}",
-                ephemeral=True
-            )
-
-        except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Terjadi kesalahan: {e}",
-                ephemeral=True
-            )
-
-# ==================== VIEW TOMBOL BERDAMPINGAN ====================
+# ==================== VIEW TOMBOL UTAMA ====================
 class BuyButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🛒 Buka Form Pembelian", style=discord.ButtonStyle.green, custom_id="open_buy_modal_persistent")
+    @discord.ui.button(label="🛒 Buka Formulir Pesanan", style=discord.ButtonStyle.green, custom_id="open_buy_modal_persistent")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(BuyModal())
-
-    @discord.ui.button(label="📱 Set Up Redfinger", style=discord.ButtonStyle.blurple, custom_id="open_redfinger_modal_persistent")
-    async def open_redfinger(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(RedfingerModal())
 
 # ==================== KUMPULAN PERINTAH ====================
 
@@ -351,7 +267,7 @@ async def show_info(ctx):
     )
     embed.add_field(
         name="🛡️ Moderasi, Admin & Tiket",
-        value="`.panelorder` — Mengirim panel form pembelian & redfinger\n"
+        value="`.panelorder` — Mengirim panel form pesanan\n"
               "`.clear` / `.cls` — Menghapus pesan\n"
               "`.closeticket` / `.done` — Menutup tiket\n"
               "`.role @user [nama role]` — Memberikan/mencabut role\n"
@@ -377,7 +293,7 @@ async def show_info(ctx):
 async def manual_panel_order(ctx):
     embed = discord.Embed(
         title="🛒 TONGSOP OFFICIAL TICKET SYSTEM",
-        description="Silakan klik tombol di bawah ini untuk mengisi formulir pemesanan produk atau set up jasa split Redfinger.",
+        description="Silakan klik tombol di bawah ini untuk mengisi formulir pemesanan produk atau set up Redfinger.",
         color=0x3498DB
     )
     embed.set_footer(text="TONGSOP Store • Secure Order System")
