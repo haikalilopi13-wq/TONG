@@ -28,7 +28,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Siap melayani server dengan Leaderboard beravatar, Leveling, Untimeout, dan Moderasi Lengkap!")
+    print("🚀 Siap melayani server dengan Leaderboard, Leveling, Untimeout, dan Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -115,7 +115,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek leaderboard level beravatar\n"
+              "`.top` / `.lb` — Cek leaderboard level & avatar\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -129,13 +129,13 @@ async def show_info(ctx):
     )
     embed.add_field(
         name="🎮 Fun, Games & Hiburan",
-        value="`.roll` — Acak angka\n`.coinflip` — Lempar koin\n`.rps` — Main Suit\n`.rate` — Nilai sesuatu",
+        value="`.roll` — Dadu | `.coinflip` — Koin | `.rps` — Suit | `.rate` — Nilai",
         inline=False
     )
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD DENGAN AVATAR (@top / @lb) ---
+# --- LEADERBOARD DENGAN AVATAR & MULTI-USER (@top / @lb) ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -153,24 +153,28 @@ async def show_leaderboard(ctx):
 
     # Ambil peringkat pertama (Rank #1) untuk dipajang avatarnya di Thumbnail Embed
     top_user_id = sorted_users[0][0]
-    top_user = ctx.guild.get_member(top_user_id) or bot.get_user(top_user_id)
-    if top_user and top_user.avatar:
-        embed.set_thumbnail(url=top_user.avatar.url)
+    try:
+        top_user = ctx.guild.get_member(top_user_id) or await bot.fetch_user(top_user_id)
+        if top_user and top_user.avatar:
+            embed.set_thumbnail(url=top_user.avatar.url)
+    except Exception:
+        pass
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+    leaderboard_text = ""
 
     for i, (user_id, data) in enumerate(sorted_users[:10]):  # Batasi Top 10
         member = ctx.guild.get_member(user_id)
         name = member.display_name if member else f"User {user_id}"
         badge = medals[i] if i < len(medals) else f"`#{i+1}`"
         
-        embed.add_field(
-            name=f"{badge} {name}",
-            value=f"✨ Level: **{data['level']}** | ⚡ XP: `{data['xp']}`",
-            inline=False
-        )
+        leaderboard_text += f"{badge} **{name}**\n   ✨ Level: **{data['level']}** | ⚡ XP: `{data['xp']}`\n\n"
 
-    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    embed.add_field(name="Peringkat Teratas", value=leaderboard_text, inline=False)
+    
+    footer_icon = ctx.author.avatar.url if ctx.author.avatar else None
+    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store", icon_url=footer_icon)
+    
     await ctx.send(embed=embed)
 
 # --- LEVEL & XP COMMAND ---
