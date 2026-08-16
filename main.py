@@ -28,7 +28,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Siap melayani server dengan Leaderboard Top 3, Perintah .pp / .avatar, Leveling, & Moderasi Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Top 3 beravatar, .pp, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -115,7 +115,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 3 leaderboard & avatar\n"
+              "`.top` / `.lb` — Cek Top 3 leaderboard lengkap profil\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -135,7 +135,7 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- LEADERBOARD TOP 3 DENGAN AVATAR (@top / @lb) ---
+# --- LEADERBOARD TOP 3 DENGAN PROFIL/AVATAR (@top / @lb) ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
@@ -147,29 +147,38 @@ async def show_leaderboard(ctx):
 
     embed = discord.Embed(
         title="🏆 LEADERBOARD TOP 3 SERVER",
-        description="Daftar 3 member teratas berdasarkan Level dan XP:",
+        description="Daftar 3 member teratas beserta profil dan pencapaiannya:",
         color=0xF1C40F
     )
 
-    # Ambil peringkat pertama (Rank #1) untuk dipajang avatarnya di Thumbnail kanan atas embed
-    top_user_id = sorted_users[0][0]
-    try:
-        top_user = ctx.guild.get_member(top_user_id) or await bot.fetch_user(top_user_id)
-        if top_user and top_user.avatar:
-            embed.set_thumbnail(url=top_user.avatar.url)
-    except Exception:
-        pass
-
     medals = ["🥇", "🥈", "🥉"]
-    leaderboard_text = ""
+    top_user_avatar = None
 
-    # Ambil hanya sampai Top 3 saja (slice [:3])
-    for i, (user_id, data) in enumerate(sorted_users[:3]):
+    leaderboard_text = ""
+    for i, (user_id, data) in enumerate(sorted_users[:3]):  # Ambil Top 3
         member = ctx.guild.get_member(user_id)
-        name = member.display_name if member else f"User {user_id}"
+        if not member:
+            try:
+                member = await bot.fetch_user(user_id)
+            except Exception:
+                member = None
+
+        name = member.display_name if hasattr(member, 'display_name') else (member.name if member else f"User {user_id}")
         badge = medals[i]
         
-        leaderboard_text += f"{badge} **{name}**\n   ✨ Level: **{data['level']}** | ⚡ XP: `{data['xp']}`\n\n"
+        # Ambil URL avatar user
+        avatar_url = member.avatar.url if member and member.avatar else (member.default_avatar.url if member else None)
+        
+        # Jadikan avatar peringkat 1 sebagai thumbnail utama embed
+        if i == 0 and avatar_url:
+            top_user_avatar = avatar_url
+
+        # Tampilkan nama, level, XP, beserta link langsung ke foto profil mereka
+        profile_link = f"[Lihat Profil]({avatar_url})" if avatar_url else "Tidak ada avatar"
+        leaderboard_text += f"{badge} **{name}**\n   ✨ Level: **{data['level']}** | ⚡ XP: `{data['xp']}`\n   🖼️ Avatar: {profile_link}\n\n"
+
+    if top_user_avatar:
+        embed.set_thumbnail(url=top_user_avatar)
 
     embed.add_field(name="Peringkat 1 - 3", value=leaderboard_text, inline=False)
     
