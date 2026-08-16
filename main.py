@@ -3,6 +3,7 @@ from discord.ext import commands
 import os
 import random
 import datetime
+import asyncio
 
 # ==================== CONFIG BOT ====================
 intents = discord.Intents.default()
@@ -28,7 +29,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Leaderboard Top 3 beravatar, .pp, Leveling, & Moderasi Lengkap!")
+    print("🚀 Bot siap dengan Leaderboard Top 3 tampilan baru, .pp, Leveling, & Moderasi Lengkap!")
 
 @bot.event
 async def on_message(message):
@@ -115,7 +116,7 @@ async def show_info(ctx):
     embed.add_field(
         name="📊 Level & XP (Admin & Member)",
         value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 3 leaderboard lengkap profil\n"
+              "`.top` / `.lb` — Cek Top 3 leaderboard rapi + avatar\n"
               "`.addxp` / `.axp` — Menambah XP user (Admin)\n"
               "`.addlevel` / `.alvl` — Menambah Level user (Admin)",
         inline=False
@@ -147,15 +148,15 @@ async def show_leaderboard(ctx):
 
     embed = discord.Embed(
         title="🏆 LEADERBOARD TOP 3 SERVER",
-        description="Daftar 3 member teratas beserta profil dan pencapaiannya:",
+        description="Daftar 3 member teratas dengan pencapaian tertinggi:",
         color=0xF1C40F
     )
 
-    medals = ["🥇", "🥈", "🥉"]
+    medals = ["🥇 Peringkat 1", "🥈 Peringkat 2", "🥉 Peringkat 3"]
     top_user_avatar = None
 
-    leaderboard_text = ""
-    for i, (user_id, data) in enumerate(sorted_users[:3]):  # Ambil Top 3
+    # Ambil hanya Top 3 dan buat field terpisah untuk masing-masing user
+    for i, (user_id, data) in enumerate(sorted_users[:3]):
         member = ctx.guild.get_member(user_id)
         if not member:
             try:
@@ -164,24 +165,27 @@ async def show_leaderboard(ctx):
                 member = None
 
         name = member.display_name if hasattr(member, 'display_name') else (member.name if member else f"User {user_id}")
-        badge = medals[i]
         
         # Ambil URL avatar user
         avatar_url = member.avatar.url if member and member.avatar else (member.default_avatar.url if member else None)
         
-        # Jadikan avatar peringkat 1 sebagai thumbnail utama embed
+        # Simpan avatar peringkat 1 untuk thumbnail besar di pojok kanan
         if i == 0 and avatar_url:
             top_user_avatar = avatar_url
 
-        # Tampilkan nama, level, XP, beserta link langsung ke foto profil mereka
-        profile_link = f"[Lihat Profil]({avatar_url})" if avatar_url else "Tidak ada avatar"
-        leaderboard_text += f"{badge} **{name}**\n   ✨ Level: **{data['level']}** | ⚡ XP: `{data['xp']}`\n   🖼️ Avatar: {profile_link}\n\n"
+        # Format isi field untuk setiap user
+        value_text = (
+            f"👤 **Nama:** {name}\n"
+            f"✨ **Level:** `{data['level']}` | ⚡ **XP:** `{data['xp']}`\n"
+        )
+        if avatar_url:
+            value_text += f"🖼️ **[Buka Foto Profil (Avatar)]({avatar_url})**"
+
+        embed.add_field(name=medals[i], value=value_text, inline=False)
 
     if top_user_avatar:
         embed.set_thumbnail(url=top_user_avatar)
 
-    embed.add_field(name="Peringkat 1 - 3", value=leaderboard_text, inline=False)
-    
     footer_icon = ctx.author.avatar.url if ctx.author.avatar else None
     embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store", icon_url=footer_icon)
     
@@ -232,7 +236,6 @@ async def clear_messages(ctx, amount: int = 5):
         return
     deleted = await ctx.channel.purge(limit=amount + 1)
     msg = await ctx.send(f"🧹 Berhasil menghapus **{len(deleted) - 1}** pesan.")
-    import asyncio
     await asyncio.sleep(3)
     try:
         await msg.delete()
