@@ -74,7 +74,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         self.ticket_opener = ticket_opener
         self.rating_bintang = rating_bintang
 
-        # Menambahkan input teks untuk ulasan bebas dari pembeli
         self.ulasan_teks = discord.ui.TextInput(
             label="Ulasan / Pesan Anda",
             placeholder="Contoh: Pelayanannya sangat cepat dan ramah sekali!",
@@ -88,7 +87,6 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
         guild = interaction.guild
         testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
 
-        # Tentukan warna embed berdasarkan rating
         if "5" in self.rating_bintang:
             color_code = 0x2ECC71
         elif "3" in self.rating_bintang:
@@ -138,7 +136,6 @@ class TicketControlView(discord.ui.View):
         super().__init__(timeout=None)
         self.ticket_opener = ticket_opener
 
-    # Tombol 1: Khusus Close Ticket (Bisa ditekan Pembuat Tiket atau Staf)
     @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_only")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
@@ -152,7 +149,6 @@ class TicketControlView(discord.ui.View):
         except Exception:
             pass
 
-    # Tombol 2: Khusus Memberi Rating & Ulasan
     @discord.ui.button(label="⭐ Beri Rating & Ulasan", style=discord.ButtonStyle.success, custom_id="rate_ticket_btn_only")
     async def rate_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.ticket_opener and not interaction.user.guild_permissions.manage_channels:
@@ -246,19 +242,17 @@ class BuyModal(discord.ui.Modal, title="BUY"):
                 ephemeral=True
             )
 
-# ==================== FORMULIR REDFINGER (SPLIT MODAL) ====================
+# ==================== FORMULIR REDFINGER (1 KOLOM) ====================
 class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
     paket = discord.ui.TextInput(
         label="Split Redfinger",
-        placeholder="SPLIT TERGANTUNG DIVCE",
+        placeholder="SPLIT TERGANTUNG DEVICE",
         style=discord.TextStyle.short,
         required=True
     )
     
     async def on_submit(self, interaction: discord.Interaction):
         pkt = self.paket.value
-        jml = self.jumlah_split.value
-        catatan = self.username_roblox.value
 
         guild = interaction.guild
         member = interaction.user
@@ -290,9 +284,7 @@ class RedfingerModal(discord.ui.Modal, title="SET UP REDFINGER"):
                 description=f"Halo {member.mention}, pesanan jasa split Redfinger Anda telah diterima!",
                 color=0xE67E22
             )
-            ticket_embed.add_field(name="📦 Paket", value=pkt, inline=False)
-            ticket_embed.add_field(name="🔢 Jumlah Slot Split", value=jml, inline=False)
-            ticket_embed.add_field(name="📝 Catatan / User", value=catatan, inline=False)
+            ticket_embed.add_field(name="📱 Split Redfinger", value=pkt, inline=False)
             ticket_embed.set_footer(text="Gunakan tombol di bawah untuk memberi ulasan atau menutup tiket.")
 
             await ticket_channel.send(
