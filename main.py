@@ -32,7 +32,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Rating Terkunci hingga Staf Membukanya!")
+    print("🚀 Bot siap dengan Fitur Tag Staf di Testimoni & Rating Terkunci!")
 
 @bot.event
 async def on_message(message):
@@ -69,10 +69,11 @@ async def on_message(message):
 
 # ==================== MODAL ULASAN TEKS PEMBELI ====================
 class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
-    def __init__(self, ticket_opener: discord.Member, rating_bintang: str):
+    def __init__(self, ticket_opener: discord.Member, rating_bintang: str, claimed_by: discord.Member):
         super().__init__()
         self.ticket_opener = ticket_opener
         self.rating_bintang = rating_bintang
+        self.claimed_by = claimed_by
 
         self.ulasan_teks = discord.ui.TextInput(
             label="Ulasan / Pesan Anda",
@@ -101,7 +102,12 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             color=color_code
         )
         testi_embed.add_field(name="👤 Pembeli / Klien", value=f"{buyer.mention} (`@{buyer.name}`)", inline=True)
-        testi_embed.add_field(name="🏆 Penilaian", value=self.rating_bintang, inline=True)
+        
+        # Menampilkan staf yang menghandle transaksi
+        staff_display = self.claimed_by.mention if self.claimed_by else "Staf / Admin"
+        testi_embed.add_field(name="🛠️ Ditangani Oleh", value=staff_display, inline=True)
+        
+        testi_embed.add_field(name="🏆 Penilaian", value=self.rating_bintang, inline=False)
         testi_embed.add_field(name="💬 Ulasan Pembeli", value=f"*{self.ulasan_teks.value}*", inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
@@ -111,24 +117,25 @@ class ReviewModal(discord.ui.Modal, title="BERI ULASAN & TESTIMONI"):
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel testi.", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih banyak atas ulasan dan ratingnya! Testimoni berhasil dikirim ke channel testi beserta info staf yang bertugas.", ephemeral=True)
 
 class RatingChoiceView(discord.ui.View):
-    def __init__(self, ticket_opener: discord.Member):
+    def __init__(self, ticket_opener: discord.Member, claimed_by: discord.Member):
         super().__init__(timeout=60)
         self.ticket_opener = ticket_opener
+        self.claimed_by = claimed_by
 
     @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
     async def rate_5(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐⭐⭐ (Sangat Puas)"))
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐⭐⭐ (Sangat Puas)", self.claimed_by))
 
     @discord.ui.button(label="⭐ 3 (Cukup)", style=discord.ButtonStyle.blurple)
     async def rate_3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐ (Cukup)"))
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐⭐⭐ (Cukup)", self.claimed_by))
 
     @discord.ui.button(label="⭐ 1 (Kurang)", style=discord.ButtonStyle.red)
     async def rate_1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐ (Kurang)"))
+        await interaction.response.send_modal(ReviewModal(self.ticket_opener, "⭐ (Kurang)", self.claimed_by))
 
 # ==================== VIEW KONTROL & CLAIM TIKET ====================
 class ClaimTicketView(discord.ui.View):
@@ -166,16 +173,15 @@ class ClaimTicketView(discord.ui.View):
             
         ticket_embed.set_footer(text="Staf dapat mengaktifkan tombol rating atau menutup tiket di bawah.")
 
-        # Kirim view kontrol di mana tombol rating AWALNYA MASIH TERKUNCI (disabled=True)
-        await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener, rating_unlocked=False))
+        await interaction.message.edit(embed=ticket_embed, view=TicketControlView(self.ticket_opener, self.claimed_by, rating_unlocked=False))
         await interaction.response.send_message(f"✅ Anda berhasil mengklaim tiket ini!", ephemeral=True)
 
 class TicketControlView(discord.ui.View):
-    def __init__(self, ticket_opener: discord.Member, rating_unlocked: bool = False):
+    def __init__(self, ticket_opener: discord.Member, claimed_by: discord.Member, rating_unlocked: bool = False):
         super().__init__(timeout=None)
         self.ticket_opener = ticket_opener
+        self.claimed_by = claimed_by
         
-        # Atur status tombol rating berdasarkan izin staf
         self.rate_ticket_btn_only.disabled = not rating_unlocked
         if rating_unlocked:
             self.rate_ticket_btn_only.label = "⭐ Beri Rating & Ulasan (Dibuka)"
@@ -186,16 +192,12 @@ class TicketControlView(discord.ui.View):
 
     @discord.ui.button(label="✨ Buka Akses Rating", style=discord.ButtonStyle.primary, custom_id="unlock_rating_btn")
     async def unlock_rating_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Hanya staf yang bisa membuka akses rating
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ Hanya Staf yang dapat membuka akses rating untuk pembeli!", ephemeral=True)
             return
 
-        # Ubah view agar tombol rating terbuka (aktif)
-        self.remove_item(button) # Hapus tombol buka akses agar tidak diklik dua kali
-        
-        # Buat view baru dengan rating_unlocked = True
-        new_view = TicketControlViewUnlocked(self.ticket_opener)
+        self.remove_item(button)
+        new_view = TicketControlViewUnlocked(self.ticket_opener, self.claimed_by)
         
         await interaction.message.edit(view=new_view)
         await interaction.response.send_message("✅ Akses rating & ulasan telah dibuka untuk pembeli!", ephemeral=False)
@@ -217,11 +219,11 @@ class TicketControlView(discord.ui.View):
     async def rate_ticket_btn_only(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
-# View khusus setelah staf membuka akses rating
 class TicketControlViewUnlocked(discord.ui.View):
-    def __init__(self, ticket_opener: discord.Member):
+    def __init__(self, ticket_opener: discord.Member, claimed_by: discord.Member):
         super().__init__(timeout=None)
         self.ticket_opener = ticket_opener
+        self.claimed_by = claimed_by
 
     @discord.ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn_unlocked")
     async def close_ticket_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -247,7 +249,7 @@ class TicketControlViewUnlocked(discord.ui.View):
             description="Silakan pilih tingkat kepuasan Anda terlebih dahulu:",
             color=0xF1C40F
         )
-        await interaction.response.send_message(embed=embed, view=RatingChoiceView(self.ticket_opener), ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=RatingChoiceView(self.ticket_opener, self.claimed_by), ephemeral=True)
 
 # ==================== FORMULIR PEMBELIAN (BUY MODAL) ====================
 class BuyModal(discord.ui.Modal, title="BUY"):
