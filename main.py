@@ -11,7 +11,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target (Dari skrip awal Anda)
+# Channel ID Target
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 
@@ -62,7 +62,7 @@ async def on_message(message):
             except Exception:
                 pass
 
-    # 2. Auto Response Tiket di Channel General (Fitur dari skrip awal Anda)
+    # 2. Auto Response Tiket di Channel General
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
