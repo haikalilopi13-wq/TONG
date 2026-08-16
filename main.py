@@ -125,7 +125,7 @@ async def show_info(ctx):
               "`.say [pesan]` — Mengulang pesan\n"
               "`.server` — Info lengkap server\n"
               "`.whois [@user]` — Detail profil member\n"
-              "`.avatar [@user]` — Foto profil member",
+              "`.avatar [@user]` — Foto profil, info whois & role",
         inline=False
     )
     embed.add_field(
@@ -313,9 +313,24 @@ async def whois_member(ctx, member: discord.Member = None):
 @bot.command(name="avatar", aliases=["pp"])
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
-    embed = discord.Embed(title=f"🖼️ Foto Profil — {target.name}", color=0x9B59B6)
+    
+    # Mengambil daftar role member (mengabaikan role @everyone)
+    roles = [role.mention for role in target.roles if role != ctx.guild.default_role]
+    role_list = ", ".join(roles) if roles else "Tidak ada role"
+    if len(role_list) > 1024:
+        role_list = "Terlalu banyak role untuk ditampilkan"
+
+    embed = discord.Embed(title=f"🖼️ Profil & Avatar — {target.name}", color=0x9B59B6)
+    
     avatar_url = target.avatar.url if target.avatar else target.default_avatar.url
     embed.set_image(url=avatar_url)
+    
+    # Menambahkan informasi whois dan role
+    embed.add_field(name="🆔 User ID", value=f"`{target.id}`", inline=True)
+    embed.add_field(name="🏷️ Nama Panggilan", value=target.display_name, inline=True)
+    embed.add_field(name="📅 Bergabung Server", value=target.joined_at.strftime("%d %b %Y") if target.joined_at else "-", inline=False)
+    embed.add_field(name=f"🛡️ Role ({len(roles)})", value=role_list, inline=False)
+    
     await ctx.send(embed=embed)
 
 # --- FUN & GAMES COMMANDS ---
