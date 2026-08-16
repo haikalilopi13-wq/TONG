@@ -13,7 +13,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=".", intents=intents, help_command=None)
 
-# Channel ID Target
+# Channel ID Target (Ganti dengan ID channel server Anda)
 GENERAL_CHANNEL_ID = 1518084729122062488
 TICKET_CHANNEL_ID = 1517625110536786050
 TESTIMONI_CHANNEL_ID = 000000000000000000  # <--- Ganti dengan ID Channel Testimoni Anda
@@ -31,7 +31,7 @@ def get_user_xp(user_id):
 @bot.event
 async def on_ready():
     print(f"✨ Bot Berhasil Terhubung as {bot.user}!")
-    print("🚀 Bot siap dengan Sistem Testimoni Otomatis & Fitur Lengkap!")
+    print("🚀 Bot siap dengan Sistem Form Modal, Testimoni, Tiket, & Leveling!")
 
 @bot.event
 async def on_message(message):
@@ -65,7 +65,7 @@ async def on_message(message):
             except Exception:
                 pass
 
-    # 2. Auto Response Tiket di Channel General
+    # 2. Auto Response Panel Order / Tiket di Channel General
     if message.channel.id == GENERAL_CHANNEL_ID:
         try:
             async for old_msg in message.channel.history(limit=15):
@@ -76,21 +76,59 @@ async def on_message(message):
 
         embed = discord.Embed(
             title="🛒 PRENSTORE OFFICIAL TICKET SYSTEM",
-            description="Selamat datang! Butuh bantuan cepat atau ingin melakukan pemesanan produk? Silakan akses panel tiket di bawah ini.",
+            description="Selamat datang! Ingin melakukan pemesanan produk? Silakan klik tombol di bawah untuk mengisi formulir pesanan.",
             color=0x3498DB,
-        )
-
-        embed.add_field(
-            name="📦 Layanan Order Produk",
-            value=f"👉 Masuk ke <#{TICKET_CHANNEL_ID}>",
-            inline=False,
         )
         embed.set_footer(text="TONGSOP Store • Secure & Trusted Service")
 
-        await message.channel.send(content=f"{message.author.mention}", embed=embed)
+        await message.channel.send(content=f"{message.author.mention}", embed=embed, view=BuyButtonView())
         return
 
     await bot.process_commands(message)
+
+# ==================== SISTEM FORM MODAL (BUY FORM) ====================
+class BuyModal(discord.ui.Modal, title="BUY"):
+    mau_beli = discord.ui.TextInput(
+        label="Mau beli apa?",
+        placeholder="Make a selection",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    
+    jumlah = discord.ui.TextInput(
+        label="Jumlah",
+        placeholder="semisal mau beli campur pakai koma contoh 10,10",
+        style=discord.TextStyle.short,
+        required=True
+    )
+    
+    username_roblox = discord.ui.TextInput(
+        label="User Name Roblox",
+        placeholder="Masukkan username Roblox Anda",
+        style=discord.TextStyle.short,
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        produk = self.mau_beli.value
+        jml = self.jumlah.value
+        roblox_name = self.username_roblox.value
+
+        await interaction.response.send_message(
+            f"✅ Formulir pesanan berhasil dikirim!\n"
+            f"• **Mau beli:** {produk}\n"
+            f"• **Jumlah:** {jml}\n"
+            f"• **Roblox Name:** {roblox_name}",
+            ephemeral=True
+        )
+
+class BuyButtonView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🛒 Buka Form Pembelian", style=discord.ButtonStyle.green, custom_id="open_buy_modal_persistent")
+    async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BuyModal())
 
 # ==================== SISTEM INTERAKTIF RATING & TESTIMONI ====================
 class RatingView(discord.ui.View):
@@ -102,7 +140,6 @@ class RatingView(discord.ui.View):
         guild = interaction.guild
         testi_channel = guild.get_channel(TESTIMONI_CHANNEL_ID)
 
-        # Buat Embed Testimoni untuk dikirim ke channel khusus testi
         testi_embed = discord.Embed(
             title="⭐ TESTIMONI & RATING PELANGGAN",
             description=f"Terima kasih atas kepercayaan Anda kepada **TONGSOP Store**!",
@@ -113,14 +150,13 @@ class RatingView(discord.ui.View):
         testi_embed.add_field(name="🛠️ Ditutup Oleh", value=interaction.user.mention, inline=False)
         testi_embed.set_footer(text=f"TONGSOP Store • {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-        # Kirim ke channel testimoni jika ID channel sudah diatur
         if testi_channel:
             try:
                 await testi_channel.send(embed=testi_embed)
             except Exception:
                 pass
 
-        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim. Channel akan ditutup dalam 5 detik...", ephemeral=True)
+        await interaction.response.send_message("✨ Terima kasih atas ratingnya! Testimoni telah dikirim ke channel testi. Channel akan ditutup dalam 5 detik...", ephemeral=True)
         await self.disable_all_and_close(interaction.channel)
 
     @discord.ui.button(label="⭐ 5 (Sangat Puas)", style=discord.ButtonStyle.green)
@@ -165,17 +201,17 @@ async def show_info(ctx):
     )
     embed.add_field(
         name="🛡️ Moderasi, Admin & Tiket",
-        value="`.clear` / `.cls` — Menghapus pesan\n"
+        value="`.panelorder` — Mengirim panel form pembelian\n"
+              "`.clear` / `.cls` — Menghapus pesan\n"
               "`.closeticket` / `.done` — Menutup tiket & memunculkan tombol rating\n"
               "`.role @user [nama role]` — Memberikan/mencabut role\n"
               "`.ban @user [alasan]` — Memblokir member",
         inline=False
     )
     embed.add_field(
-        name="📊 Level & XP (Admin & Member)",
-        value="`.rank` / `.lvl` — Cek kartu profil & XP kamu\n"
-              "`.top` / `.lb` — Cek Top 10 Leaderboard dalam Kotak Embed\n"
-              "`.addxp` / `.axp` — Menambah XP user (Admin)",
+        name="📊 Level & XP",
+        value="`.rank` — Cek kartu profil & XP\n"
+              "`.top` / `.lb` — Cek Leaderboard server",
         inline=False
     )
     embed.add_field(
@@ -186,11 +222,27 @@ async def show_info(ctx):
     embed.set_footer(text="TONGSOP Store • All Rights Reserved")
     await ctx.send(embed=embed)
 
-# --- PERINTAH MENUTUP TIKET & RATING (.done / .closeticket) ---
+# --- PERINTAH PANEL ORDER MANUAL (ADMIN) ---
+@bot.command(name="panelorder")
+@commands.has_permissions(administrator=True)
+async def manual_panel_order(ctx):
+    embed = discord.Embed(
+        title="🛒 TONGSOP STORE ORDER PANEL",
+        description="Silakan klik tombol di bawah ini untuk mengisi formulir pemesanan produk.",
+        color=0x3498DB
+    )
+    embed.set_footer(text="TONGSOP Store • Secure Order System")
+    await ctx.send(embed=embed, view=BuyButtonView())
+
+@manual_panel_order.error
+async def panel_order_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ Hanya Administrator yang dapat memunculkan panel order!")
+
+# --- PERINTAH MENUTUP TIKET & RATING (.done / .closeticket) [Hanya Staf/Mod] ---
 @bot.command(name="closeticket", aliases=["done", "selesai"])
 @commands.has_permissions(manage_channels=True)
 async def close_ticket(ctx, member: discord.Member = None):
-    # Jika tidak mengetik mention member, bot coba tebak pembuat tiket dari nama channel atau histori
     target_member = member or ctx.author 
 
     embed = discord.Embed(
@@ -207,11 +259,11 @@ async def closeticket_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kamu tidak memiliki izin untuk menutup tiket!")
 
-# --- LEADERBOARD TOP 10 DALAM SATU KOTAK EMBED RAPI & BISA DIKLIK ---
+# --- LEADERBOARD TOP 10 ---
 @bot.command(name="leaderboard", aliases=["lb", "top", "levels"])
 async def show_leaderboard(ctx):
     if not user_data:
-        await ctx.send("❌ Belum ada data level di server ini. Yuk mulai aktif chat!")
+        await ctx.send("❌ Belum ada data level di server ini.")
         return
 
     sorted_users = sorted(user_data.items(), key=lambda item: (item[1]['level'], item[1]['xp']), reverse=True)
@@ -223,7 +275,6 @@ async def show_leaderboard(ctx):
     )
 
     leaderboard_lines = []
-
     for i, (user_id, data) in enumerate(sorted_users[:10]):
         member = ctx.guild.get_member(user_id)
         if not member:
@@ -232,33 +283,20 @@ async def show_leaderboard(ctx):
             except Exception:
                 member = None
 
-        if i == 0:
-            rank_num = "🥇 #1"
-        elif i == 1:
-            rank_num = "🥈 #2"
-        elif i == 2:
-            rank_num = "🥉 #3"
-        else:
-            rank_num = f"#{i+1}"
+        if i == 0: rank_num = "🥇 #1"
+        elif i == 1: rank_num = "🥈 #2"
+        elif i == 2: rank_num = "🥉 #3"
+        else: rank_num = f"#{i+1}"
 
         user_mention = member.mention if member else f"<@{user_id}>"
-
         line = f"**{rank_num}** • {user_mention} • LVL: `+{data['level']}` XP: `+{data['xp']}`"
         leaderboard_lines.append(line)
 
-    embed.add_field(
-        name="📊 Peringkat Teratas",
-        value="\n".join(leaderboard_lines),
-        inline=False
-    )
-
-    footer_text = f"Diminta oleh {ctx.author.display_name} • TONGSOP Store"
-    footer_icon = ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url
-    embed.set_footer(text=footer_text, icon_url=footer_icon)
-
+    embed.add_field(name="📊 Peringkat Teratas", value="\n".join(leaderboard_lines), inline=False)
+    embed.set_footer(text=f"Diminta oleh {ctx.author.display_name} • TONGSOP Store")
     await ctx.send(embed=embed)
 
-# --- LEVEL & XP COMMAND ---
+# --- RANK & XP ---
 @bot.command(name="rank", aliases=["lvl", "level"])
 async def check_rank(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -271,204 +309,60 @@ async def check_rank(ctx, member: discord.Member = None):
     embed.add_field(name="⚡ XP Saat Ini", value=f"**{data['xp']} / {xp_needed}**", inline=True)
     await ctx.send(embed=embed)
 
-# --- ADMIN: MENAMBAH XP & LEVEL ---
 @bot.command(name="addxp", aliases=["axp"])
 @commands.has_permissions(administrator=True)
 async def add_xp(ctx, member: discord.Member, amount: int):
     data = get_user_xp(member.id)
     data["xp"] += amount
-    await ctx.send(f"✨ Berhasil menambahkan **{amount} XP** kepada {member.mention}. Total XP sekarang: `{data['xp']}`")
+    await ctx.send(f"✨ Berhasil menambahkan **{amount} XP** kepada {member.mention}.")
 
-@bot.command(name="addlevel", aliases=["alvl"])
-@commands.has_permissions(administrator=True)
-async def add_level(ctx, member: discord.Member, amount: int):
-    data = get_user_xp(member.id)
-    data["level"] += amount
-    await ctx.send(f"🚀 Berhasil menambahkan **{amount} Level** kepada {member.mention}. Level sekarang: **Level {data['level']}**")
-
-@add_xp.error
-@add_level.error
-async def level_admin_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu harus memiliki izin *Administrator*!")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("⚠️ Format salah! Contoh: `.axp @User 50` atau `.alvl @User 2`")
-
-# --- MODERASI: CLEAR PESAN ---
+# --- MODERASI (CLEAR, ROLE, BAN) ---
 @bot.command(name="clear", aliases=["purge", "cls"])
 @commands.has_permissions(manage_messages=True)
 async def clear_messages(ctx, amount: int = 5):
-    if amount < 1:
-        await ctx.send("⚠️ Minimal 1 pesan.")
-        return
     deleted = await ctx.channel.purge(limit=amount + 1)
     msg = await ctx.send(f"🧹 Berhasil menghapus **{len(deleted) - 1}** pesan.")
     await asyncio.sleep(3)
-    try:
-        await msg.delete()
-    except Exception:
-        pass
+    try: await msg.delete()
+    except Exception: pass
 
-@clear_messages.error
-async def clear_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin *Manage Messages*!")
-
-# --- MODERASI: MANAJEMEN ROLE ---
 @bot.command(name="role", aliases=["giverole"])
 @commands.has_permissions(manage_roles=True)
 async def manage_role(ctx, member: discord.Member, *, rolename: str):
     guild = ctx.guild
     role = discord.utils.get(guild.roles, name=rolename)
     if not role:
-        try:
-            role = await guild.create_role(name=rolename)
-            await ctx.send(f"⚠️ Role `{rolename}` dibuat otomatis!")
-        except Exception as e:
-            await ctx.send(f"❌ Gagal membuat role: {e}")
-            return
-
+        role = await guild.create_role(name=rolename)
     if role in member.roles:
         await member.remove_roles(role)
         await ctx.send(f"✅ Berhasil **mencabut** role `{role.name}` dari {member.mention}.")
     else:
-        try:
-            await member.add_roles(role)
-            await ctx.send(f"✅ Berhasil **memberikan** role `{role.name}` kepada {member.mention}!")
-        except Exception:
-            await ctx.send("❌ Gagal memberikan role. Cek posisi role bot di pengaturan server!")
+        await member.add_roles(role)
+        await ctx.send(f"✅ Berhasil **memberikan** role `{role.name}` kepada {member.mention}!")
 
-@manage_role.error
-async def role_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin *Manage Roles*!")
-
-# --- MODERASI: BAN ---
 @bot.command(name="ban")
 @commands.has_permissions(ban_members=True)
 async def ban_member(ctx, member: discord.Member, *, reason: str = "Tidak ada alasan"):
-    try:
-        await member.ban(reason=reason)
-        await ctx.send(f"🔨 Berhasil membanned {member.mention}. Alasan: `{reason}`")
-    except Exception as e:
-        await ctx.send(f"❌ Gagal ban member: {e}")
+    await member.ban(reason=reason)
+    await ctx.send(f"🔨 Berhasil membanned {member.mention}. Alasan: `{reason}`")
 
-@ban_member.error
-async def ban_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin *Ban Members*!")
-
-# --- MODERASI: TIMEOUT ---
-@bot.command(name="timeout", aliases=["mute"])
-@commands.has_permissions(moderate_members=True)
-async def timeout_member(ctx, member: discord.Member, minutes: int, *, reason: str = "Tidak ada alasan"):
-    try:
-        duration = datetime.timedelta(minutes=minutes)
-        await member.timeout(duration, reason=reason)
-        await ctx.send(f"🔇 Berhasil timeout {member.mention} selama **{minutes} menit**. Alasan: `{reason}`")
-    except Exception as e:
-        await ctx.send(f"❌ Gagal timeout: {e}")
-
-@timeout_member.error
-async def timeout_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin *Moderate Members*!")
-
-# --- MODERASI: UNTIMEOUT / UNMUTE ---
-@bot.command(name="untimeout", aliases=["unmute", "unt"])
-@commands.has_permissions(moderate_members=True)
-async def untimeout_member(ctx, member: discord.Member, *, reason: str = "Selesai masa hukuman"):
-    try:
-        await member.timeout(None, reason=reason)
-        await ctx.send(f"🔊 Berhasil membatalkan timeout untuk {member.mention}. Alasan: `{reason}`")
-    except Exception as e:
-        await ctx.send(f"❌ Gagal membatalkan timeout: {e}")
-
-@untimeout_member.error
-async def untimeout_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Kamu tidak memiliki izin *Moderate Members*!")
-
-# --- UTILITY COMMANDS ---
-@bot.command(name="say")
-async def say_message(ctx, *, message: str):
-    await ctx.message.delete()
-    await ctx.send(message)
-
+# --- UTILITY & FUN ---
 @bot.command(name="server", aliases=["serverinfo"])
 async def server_info(ctx):
     guild = ctx.guild
     embed = discord.Embed(title=f"📊 Informasi Server: {guild.name}", color=0x2ECC71)
-    if guild.icon:
-        embed.set_thumbnail(url=guild.icon.url)
+    if guild.icon: embed.set_thumbnail(url=guild.icon.url)
     embed.add_field(name="👑 Pemilik", value=guild.owner.mention if guild.owner else "N/A", inline=True)
     embed.add_field(name="👥 Total Member", value=f"`{guild.member_count}`", inline=True)
-    embed.add_field(name="🏷️ Total Role", value=f"`{len(guild.roles)}`", inline=True)
-    embed.set_footer(text=f"Server ID: {guild.id}")
     await ctx.send(embed=embed)
 
-@bot.command(name="whois", aliases=["userinfo", "ui"])
-async def whois_member(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    embed = discord.Embed(title=f"👤 User Info — {member.name}", color=0x3498DB)
-    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-    embed.add_field(name="ID", value=f"`{member.id}`", inline=True)
-    embed.add_field(name="Nama Panggilan", value=member.display_name, inline=True)
-    embed.add_field(name="Bergabung Sejak", value=member.joined_at.strftime("%d %b %Y") if member.joined_at else "-", inline=False)
-    await ctx.send(embed=embed)
-
-# --- PERINTAH CEK FOTO PROFIL & AVATAR (.pp / .avatar) ---
 @bot.command(name="avatar", aliases=["pp"])
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
-    roles = [role.mention for role in target.roles if role != ctx.guild.default_role]
-    role_list = ", ".join(roles) if roles else "Tidak ada role"
-    if len(role_list) > 1024:
-        role_list = "Terlalu banyak role untuk ditampilkan"
-
-    embed = discord.Embed(title=f"🖼️ Profil & Avatar — {target.name}", color=0x9B59B6)
+    embed = discord.Embed(title=f"🖼️ Avatar — {target.name}", color=0x9B59B6)
     embed.set_image(url=target.avatar.url if target.avatar else target.default_avatar.url)
-    embed.add_field(name="🆔 User ID", value=f"`{target.id}`", inline=True)
-    embed.add_field(name="🏷️ Nama Panggilan", value=target.display_name, inline=True)
-    embed.add_field(name="📅 Bergabung Server", value=target.joined_at.strftime("%d %b %Y") if target.joined_at else "-", inline=False)
-    embed.add_field(name=f"🛡️ Role ({len(roles)})", value=role_list, inline=False)
     await ctx.send(embed=embed)
 
-# --- FUN & GAMES COMMANDS ---
-@bot.command(name="roll")
-async def roll_dice(ctx):
-    result = random.randint(1, 100)
-    await ctx.send(f"🎲 {ctx.author.mention}, hasil lemparan dadu kamu: **{result}** (1-100)")
-
-@bot.command(name="coinflip", aliases=["koin"])
-async def coin_flip(ctx):
-    result = random.choice(["Kepala (Head) 🦅", "Buntut (Tail) 🪙"])
-    await ctx.send(f"🪙 {ctx.author.mention} melempar koin dan mendapatkan: **{result}**")
-
-@bot.command(name="rps")
-async def rock_paper_scissors(ctx, pilihan: str):
-    pilihan = pilihan.lower()
-    valid_choices = ["batu", "kertas", "gunting"]
-    if pilihan not in valid_choices:
-        await ctx.send("⚠️ Pilihan tidak valid! Gunakan: `.rps batu`, `.rps kertas`, atau `.rps gunting`")
-        return
-    bot_choice = random.choice(valid_choices)
-    if pilihan == bot_choice:
-        result = "Seri! 🤝"
-    elif (pilihan == "batu" and bot_choice == "gunting") or \
-         (pilihan == "kertas" and bot_choice == "batu") or \
-         (pilihan == "gunting" and bot_choice == "kertas"):
-        result = "Kamu Menang! 🎉"
-    else:
-        result = "Kamu Kalah! 🤖"
-    await ctx.send(f"Kamu memilih: **{pilihan}** | Bot memilih: **{bot_choice}**\nHasil: **{result}**")
-
-@bot.command(name="rate")
-async def rate_something(ctx, *, item: str):
-    score = random.randint(0, 100)
-    await ctx.send(f"⭐ Saya menilai **{item}** sebesar **{score}/100**!")
-
-# --- QUOTES ACAK ONLINE DARI INTERNET ---
 @bot.command(name="quote")
 async def random_quote(ctx):
     url = "https://api.quotable.io/random"
@@ -477,18 +371,11 @@ async def random_quote(ctx):
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    content = data.get("content")
-                    author = data.get("author")
-                    await ctx.send(f"💬 *“{content}”* \n— **{author}**")
-                else:
-                    await ctx.send("💬 *“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”*")
+                    await ctx.send(f"💬 *“{data.get('content')}”* \n— **{data.get('author')}**")
+                    return
     except Exception:
-        fallback_quotes = [
-            "“Jangan menunggu waktu yang tepat, karena waktu yang tepat adalah sekarang.”",
-            "“Tetap semangat, hasil tidak akan mengkhianati usaha!”",
-            "“Kegagalan adalah sukses yang tertunda, teruslah mencoba.”"
-        ]
-        await ctx.send(f"💬 *{random.choice(fallback_quotes)}*")
+        pass
+    await ctx.send("💬 *“Kesuksesan besar dimulai dari langkah kecil yang konsisten.”*")
 
 # ==================== RUN BOT ====================
 TOKEN = os.getenv("BOT_TOKEN")
